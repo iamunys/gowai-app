@@ -45,13 +45,150 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  /// Fix 6: Show a confirmation bottom sheet before deleting.
+  Future<void> _confirmDelete(Trip trip) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Icon
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: Color(0xFFEF4444),
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Delete Trip?',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A1A2E),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Text(
+              'Your trip to ${trip.destination} will be\npermanently deleted.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEF4444),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'Yes, Delete',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            SizedBox(
+                height: MediaQuery.of(context).padding.bottom + 8),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteTrip(trip);
+    }
+  }
+
   Future<void> _deleteTrip(Trip trip) async {
     if (trip.id == null) return;
     try {
       await _service.deleteTrip(trip.id!);
-      setState(() => _trips.removeWhere((t) => t.id == trip.id));
+      if (mounted) setState(() => _trips.removeWhere((t) => t.id == trip.id));
       if (mounted) {
-        ErrorSnackbar.showSuccess(context, 'Trip deleted.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Trip deleted',
+                    style: GoogleFonts.poppins(color: Colors.white)),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) ErrorSnackbar.show(context, ErrorHandler.getMessage(e));
@@ -155,7 +292,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         trip: _trips[i],
                         onTap: () =>
                             context.push('/itinerary', extra: _trips[i]),
-                        onDelete: () => _deleteTrip(_trips[i]),
+                        // Fix 6: show confirmation sheet before deleting.
+                        onDelete: () => _confirmDelete(_trips[i]),
                       )
                           .animate()
                           .fadeIn(delay: Duration(milliseconds: i * 60))

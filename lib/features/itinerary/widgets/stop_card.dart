@@ -77,36 +77,41 @@ class StopCard extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(14)),
-              child: stop.photoUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: stop.photoUrl!,
-                      height: 130,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => SizedBox(
-                        height: 130,
-                        child: Center(
-                          child: Lottie.asset(
-                            'assets/lottie/loader.json',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.contain,
+            // Image fills the leftover vertical space so the card never
+            // overflows regardless of the list's available height.
+            Expanded(
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(14)),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: stop.photoUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: stop.photoUrl!,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Center(
+                            child: Lottie.asset(
+                              'assets/lottie/loader.json',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.contain,
+                            ),
                           ),
-                        ),
-                      ),
-                      errorWidget: (_, __, ___) => _PlaceholderImage(
-                          category: stop.category),
-                    )
-                  : _PlaceholderImage(category: stop.category),
+                          errorWidget: (_, __, ___) =>
+                              _PlaceholderImage(category: stop.category),
+                        )
+                      : _PlaceholderImage(category: stop.category),
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
@@ -243,7 +248,8 @@ class _PlaceholderImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 130,
+      width: double.infinity,
+      height: double.infinity,
       color: AppColors.primary.withAlpha(20),
       child: Center(
         child: Icon(

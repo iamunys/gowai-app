@@ -79,7 +79,9 @@ class GowaiApp extends StatelessWidget {
       GoRoute(
         path: '/itinerary',
         builder: (_, state) {
-          final trip = state.extra as Trip;
+          final trip = state.extra is Trip
+              ? state.extra as Trip
+              : Trip.fromJson(state.extra as Map<String, dynamic>);
           return ItineraryScreen(trip: trip);
         },
       ),

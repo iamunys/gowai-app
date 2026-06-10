@@ -116,13 +116,18 @@ class SupabaseService {
     return Trip.fromJson(data);
   }
 
-  Future<Trip> makePublic(String tripId, String shareToken) async {
+  /// Marks a trip public and assigns a share token.
+  /// Returns the updated row when available; returns `null` if the update
+  /// matched/returned 0 rows (e.g. RLS hid the returned row) so the caller
+  /// can fall back to a local copy instead of crashing.
+  Future<Trip?> makePublic(String tripId, String shareToken) async {
     final data = await _client
         .from('trips')
         .update({'is_public': true, 'share_token': shareToken})
         .eq('id', tripId)
         .select()
-        .single();
+        .maybeSingle();
+    if (data == null) return null;
     return Trip.fromJson(data);
   }
 

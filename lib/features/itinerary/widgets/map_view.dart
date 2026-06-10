@@ -10,12 +10,22 @@ class MapView extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onMarkerTap;
 
+  /// When provided these override the internally-built default markers,
+  /// allowing the parent to supply custom numbered/styled markers.
+  final Set<Marker>? externalMarkers;
+
+  /// Called once the GoogleMapController is available so the parent can
+  /// animate the camera (zoom-to-stop, etc.).
+  final void Function(GoogleMapController)? onMapReady;
+
   const MapView({
     super.key,
     required this.stops,
     required this.routePoints,
     required this.selectedIndex,
     required this.onMarkerTap,
+    this.externalMarkers,
+    this.onMapReady,
   });
 
   @override
@@ -25,7 +35,8 @@ class MapView extends StatefulWidget {
 class _MapViewState extends State<MapView> {
   GoogleMapController? _mapController;
 
-  Set<Marker> get _markers {
+  /// Fallback markers — used when the parent hasn't supplied externalMarkers yet.
+  Set<Marker> get _defaultMarkers {
     return widget.stops
         .where((s) => s.latLng != null)
         .map((s) {
@@ -100,21 +111,57 @@ class _MapViewState extends State<MapView> {
 
   @override
   Widget build(BuildContext context) {
+    // Follow the device theme: night style in dark mode, default light map
+    // in day mode. MediaQuery rebuilds this widget when brightness changes,
+    // so the map switches automatically with day/night.
+    final isDark =
+        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+
     return GoogleMap(
       initialCameraPosition: CameraPosition(
         target: _initialTarget,
         zoom: 12,
       ),
-      markers: _markers,
+      style: isDark ? _nightMapStyle : null,
+      // Prefer external markers (custom numbered circles) if available.
+      markers: widget.externalMarkers ?? _defaultMarkers,
       polylines: _polylines,
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
       mapType: MapType.normal,
       onMapCreated: (ctrl) {
         _mapController = ctrl;
-        Future.delayed(
-            const Duration(milliseconds: 500), _fitBounds);
+        // Expose controller to parent for camera animation.
+        widget.onMapReady?.call(ctrl);
+        Future.delayed(const Duration(milliseconds: 500), _fitBounds);
       },
     );
   }
 }
+
+// ─── Map styles ───────────────────────────────────────────────────────────────
+
+/// Google Maps "Night" style JSON. Applied only when the device is in dark
+/// mode; in light mode the style is cleared (null) to show the default light map.
+const String _nightMapStyle = '''
+[
+  {"elementType":"geometry","stylers":[{"color":"#242f3e"}]},
+  {"elementType":"labels.text.stroke","stylers":[{"color":"#242f3e"}]},
+  {"elementType":"labels.text.fill","stylers":[{"color":"#746855"}]},
+  {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+  {"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+  {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#263c3f"}]},
+  {"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#6b9a76"}]},
+  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#38414e"}]},
+  {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#212a37"}]},
+  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9ca5b3"}]},
+  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#746855"}]},
+  {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#1f2835"}]},
+  {"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#f3d19c"}]},
+  {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#2f3948"}]},
+  {"featureType":"transit.station","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#17263c"}]},
+  {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#515c6d"}]},
+  {"featureType":"water","elementType":"labels.text.stroke","stylers":[{"color":"#17263c"}]}
+]
+''';
