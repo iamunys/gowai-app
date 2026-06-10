@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:gowai/core/services/revenuecat_service.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/services/supabase_service.dart';
@@ -19,8 +18,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _rcService = RevenueCatService();
-
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -41,8 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _service.signInWithEmail(
           _emailCtrl.text.trim(), _passwordCtrl.text.trim());
-      await _rcService.logIn(); // ✅ add this line
-
+      // logIn() is handled by the onAuthStateChange listener in main.dart
       if (mounted) context.go('/planner');
     } catch (e) {
       if (mounted) ErrorSnackbar.show(context, ErrorHandler.getMessage(e));

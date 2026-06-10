@@ -12,12 +12,30 @@ import 'features/planner/planner_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/shared_trip/shared_trip_screen.dart';
 import 'features/subscription/paywall_screen.dart';
+import 'features/legal/privacy_policy_screen.dart';
+import 'features/legal/terms_of_service_screen.dart';
+import 'features/legal/delete_account_screen.dart';
+import 'features/legal/subscription_screen.dart';
+import 'features/legal/contact_support_screen.dart';
+
+/// Notifies GoRouter whenever Supabase auth state changes so the redirect
+/// guard re-evaluates automatically (session expiry, server-side revocation, etc.)
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier() {
+    Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      notifyListeners();
+    });
+  }
+}
 
 class GowaiApp extends StatelessWidget {
   GowaiApp({super.key});
 
-  final _router = GoRouter(
+  final _authNotifier = _AuthNotifier();
+
+  late final _router = GoRouter(
     initialLocation: '/',
+    refreshListenable: _authNotifier, // ← re-run redirect on every auth event
     redirect: (context, state) {
       final user = Supabase.instance.client.auth.currentUser;
       final isAuth = user != null;
@@ -83,6 +101,27 @@ class GowaiApp extends StatelessWidget {
           final token = state.pathParameters['token']!;
           return SharedTripScreen(token: token);
         },
+      ),
+      // ── Legal & Support routes ─────────────────────────────────────────
+      GoRoute(
+        path: '/privacy-policy',
+        builder: (_, __) => const PrivacyPolicyScreen(),
+      ),
+      GoRoute(
+        path: '/terms-of-service',
+        builder: (_, __) => const TermsOfServiceScreen(),
+      ),
+      GoRoute(
+        path: '/delete-account',
+        builder: (_, __) => const DeleteAccountScreen(),
+      ),
+      GoRoute(
+        path: '/subscription-info',
+        builder: (_, __) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: '/contact-support',
+        builder: (_, __) => const ContactSupportScreen(),
       ),
     ],
   );

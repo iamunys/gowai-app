@@ -120,13 +120,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
           child: Scaffold(
             backgroundColor: AppColors.background,
             appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              centerTitle: false,
               leading: IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () => context.pop(),
               ),
               title: Text(
                 AppStrings.unlockPro,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold, fontSize: 30),
               ),
             ),
             body: SingleChildScrollView(

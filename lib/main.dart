@@ -31,6 +31,25 @@ void main() async {
     // RevenueCat initialization failure is non-fatal
   }
 
+  // ─── Sync RevenueCat identity with Supabase auth state ───────────────────
+  // Covers three scenarios:
+  //   • initialSession  — cold-start with an existing Supabase session
+  //   • signedIn        — fresh email/social sign-in
+  //   • tokenRefreshed  — silent token refresh mid-session
+  //   • signedOut       — explicit sign-out
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final event = data.event;
+    if (event == AuthChangeEvent.initialSession ||
+        event == AuthChangeEvent.signedIn ||
+        event == AuthChangeEvent.tokenRefreshed) {
+      RevenueCatService().logIn();
+    }
+    if (event == AuthChangeEvent.signedOut) {
+      RevenueCatService().logOut();
+    }
+  });
+  print('RC Key: ${dotenv.env['REVENUECAT_IOS_KEY']}');
+
   runApp(
     ProviderScope(
       child: GowaiApp(),

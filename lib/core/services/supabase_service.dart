@@ -38,6 +38,12 @@ class SupabaseService {
     return UserProfile.fromJson(data);
   }
 
+  Future<void> updateName(String userId, String fullName) async {
+    await _client
+        .from('profiles')
+        .update({'full_name': fullName}).eq('id', userId);
+  }
+
   Future<bool> canGenerateTrip(String userId) async {
     final profile = await getProfile(userId);
     if (profile == null) return false;

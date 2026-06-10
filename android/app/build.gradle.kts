@@ -1,3 +1,14 @@
+import java.util.Properties
+
+// ─── Load key.properties ──────────────────────────────────────────────────────
+// File lives at android/key.properties (one level above this file).
+// rootProject.file() resolves relative to the android/ directory.
+val keyProperties = Properties()
+val keyPropertiesFile = rootProject.file("key.properties")
+if (keyPropertiesFile.exists()) {
+    keyPropertiesFile.inputStream().use { keyProperties.load(it) }
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -8,7 +19,7 @@ plugins {
 android {
     namespace = "com.spotroot.gowai.app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -19,12 +30,22 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    // ─── Signing configs ──────────────────────────────────────────────────────
+    // Must be declared BEFORE buildTypes so the release buildType can reference it.
+    signingConfigs {
+        create("release") {
+            keyAlias     = keyProperties["keyAlias"]     as String
+            keyPassword  = keyProperties["keyPassword"]  as String
+            storeFile    = file(keyProperties["storeFile"] as String)
+            storePassword = keyProperties["storePassword"] as String
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.spotroot.gowai.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk    = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -32,9 +53,10 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use the release signing config loaded from key.properties.
+            // Previously used signingConfigs.debug — now replaced with the
+            // Play Store upload key.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
