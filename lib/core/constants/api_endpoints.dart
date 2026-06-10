@@ -1,0 +1,16 @@
+class ApiEndpoints {
+  static const claudeMessages = 'https://api.anthropic.com/v1/messages';
+  static const claudeModel = 'claude-sonnet-4-20250514';
+  static const anthropicVersion = '2023-06-01';
+
+  static const placesTextSearch =
+      'https://maps.googleapis.com/maps/api/place/textsearch/json';
+  static const placesPhoto = 'https://maps.googleapis.com/maps/api/place/photo';
+  static const directions =
+      'https://maps.googleapis.com/maps/api/directions/json';
+
+  static String placesPhotoUrl(String photoRef, String apiKey) =>
+      '$placesPhoto?maxwidth=800&photo_reference=$photoRef&key=$apiKey';
+
+  static const shareBaseUrl = 'https://Gowai.app/trip';
+}
