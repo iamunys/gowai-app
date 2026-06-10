@@ -1,6 +1,8 @@
 class ApiEndpoints {
   static const claudeMessages = 'https://api.anthropic.com/v1/messages';
-  static const claudeModel = 'claude-sonnet-4-20250514';
+  // static const claudeModel = 'claude-sonnet-4-6';
+  static const claudeModel = 'claude-haiku-4-5-20251001';
+
   static const anthropicVersion = '2023-06-01';
 
   static const placesTextSearch =

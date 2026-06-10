@@ -3,6 +3,7 @@ import '../constants/app_strings.dart';
 class ErrorHandler {
   static String getMessage(Object error) {
     final msg = error.toString().toLowerCase();
+    print(msg);
 
     if (msg.contains('socketexception') ||
         msg.contains('network') ||

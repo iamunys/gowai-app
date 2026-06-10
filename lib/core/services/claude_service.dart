@@ -60,7 +60,7 @@ Transport mode: $transport
 
     final body = jsonEncode({
       'model': ApiEndpoints.claudeModel,
-      'max_tokens': 2000,
+      'max_tokens': 200,
       'system': _systemPrompt,
       'messages': [
         {'role': 'user', 'content': userMessage}

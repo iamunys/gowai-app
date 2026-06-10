@@ -14,9 +14,11 @@ import '../../core/services/claude_service.dart';
 import '../../core/services/places_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/utils/error_handler.dart';
+import '../../core/services/update_service.dart';
 import '../../shared/widgets/app_bottom_nav.dart';
 import '../../shared/widgets/error_snackbar.dart';
 import '../../shared/widgets/primary_button.dart';
+import '../../shared/widgets/update_widgets.dart';
 import 'widgets/answer_chip.dart';
 import 'widgets/generating_animation.dart';
 import 'widgets/question_card.dart';
@@ -42,6 +44,10 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   String? _startTime;
   bool _generating = false;
 
+  // ── Update state ────────────────────────────────────────────────────────
+  UpdateResult? _updateResult;
+  bool _showMinorBanner = false;
+
   bool get _allAnswered =>
       _destinationCtrl.text.isNotEmpty &&
       _vibe != null &&
@@ -49,6 +55,28 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       _budget != null &&
       _transport != null &&
       _startTime != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService.checkForUpdate();
+    if (result == null || !mounted) return;
+
+    if (result.type == UpdateType.minor) {
+      // Only show the minor banner if the user hasn't dismissed it recently.
+      final shouldShow = await UpdateService.shouldShowMinorBanner();
+      if (!shouldShow || !mounted) return;
+    }
+
+    setState(() {
+      _updateResult = result;
+      _showMinorBanner = result.type == UpdateType.minor;
+    });
+  }
 
   @override
   void dispose() {
@@ -64,7 +92,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       return;
     }
 
-    final canGenerate = await _service.canGenerateTrip(user.id);
+    final canGenerate = await _service.incrementTripCount(user.id);
     if (!canGenerate) {
       if (mounted) context.push('/paywall');
       return;
@@ -120,17 +148,28 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
-      child: Stack(
-        children: [
-          _buildScaffold(context),
-          if (_generating) const Positioned.fill(child: GeneratingAnimation()),
-        ],
+    final isMajorUpdate = _updateResult?.type == UpdateType.major;
+    return PopScope(
+      // Block the hardware back button when a major update is pending.
+      canPop: !isMajorUpdate,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
+        child: Stack(
+          children: [
+            _buildScaffold(context),
+            if (_generating)
+              const Positioned.fill(child: GeneratingAnimation()),
+            // Major update: full-screen blocking overlay.
+            if (isMajorUpdate)
+              Positioned.fill(
+                child: MajorUpdateDialog(newVersion: _updateResult!.newVersion),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -182,205 +221,217 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
             ),
           ],
         ),
-        body: ListView(
-          controller: _scrollCtrl,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+        body: Column(
           children: [
-            // Q1: Destination
-            QuestionCard(
-              question: AppStrings.whereToGo,
-              stepNumber: 1,
-              totalSteps: 6,
-              child: TextField(
-                controller: _destinationCtrl,
-                decoration: InputDecoration(
-                  hintText: AppStrings.enterDestination,
-                  prefixIcon: const Icon(Icons.location_on_outlined,
-                      color: AppColors.primary),
-                  suffixIcon: _destinationCtrl.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() => _destinationCtrl.clear());
-                          },
-                        )
-                      : null,
-                ),
-                onChanged: (_) {
-                  setState(() {});
-                  _scrollToBottom();
-                },
+            // Minor update banner slides in at the top when available.
+            if (_showMinorBanner && _updateResult?.type == UpdateType.minor)
+              MinorUpdateBanner(
+                newVersion: _updateResult!.newVersion,
+                onDismiss: () => setState(() => _showMinorBanner = false),
               ),
-            ),
-            if (_destinationCtrl.text.isEmpty)
-              SizedBox(
-                height: 500,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      'assets/images/illu_trav.svg',
-                      width: 200,
-                      height: 200,
+            Expanded(
+              child: ListView(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  // Q1: Destination
+                  QuestionCard(
+                    question: AppStrings.whereToGo,
+                    stepNumber: 1,
+                    totalSteps: 6,
+                    child: TextField(
+                      controller: _destinationCtrl,
+                      decoration: InputDecoration(
+                        hintText: AppStrings.enterDestination,
+                        prefixIcon: const Icon(Icons.location_on_outlined,
+                            color: AppColors.primary),
+                        suffixIcon: _destinationCtrl.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  setState(() => _destinationCtrl.clear());
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                        _scrollToBottom();
+                      },
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                  if (_destinationCtrl.text.isEmpty)
+                    SizedBox(
+                      height: 500,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/images/illu_trav.svg',
+                            width: 200,
+                            height: 200,
+                          ),
+                        ],
+                      ),
+                    ),
 
-            // Q2: Vibe
-            if (_destinationCtrl.text.isNotEmpty)
-              QuestionCard(
-                question: AppStrings.whatKindOfDay,
-                stepNumber: 2,
-                totalSteps: 6,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    (AppStrings.vibeNature, '🌿'),
-                    (AppStrings.vibeFoodCulture, '🍜'),
-                    (AppStrings.vibeSightseeing, '🏛️'),
-                    (AppStrings.vibeMix, '✨'),
-                  ].map((item) {
-                    return AnswerChip(
-                      label: item.$1,
-                      emoji: item.$2,
-                      selected: _vibe == item.$1,
-                      onTap: () {
-                        setState(() => _vibe = item.$1);
-                        _scrollToBottom();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
+                  // Q2: Vibe
+                  if (_destinationCtrl.text.isNotEmpty)
+                    QuestionCard(
+                      question: AppStrings.whatKindOfDay,
+                      stepNumber: 2,
+                      totalSteps: 6,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          (AppStrings.vibeNature, '🌿'),
+                          (AppStrings.vibeFoodCulture, '🍜'),
+                          (AppStrings.vibeSightseeing, '🏛️'),
+                          (AppStrings.vibeMix, '✨'),
+                        ].map((item) {
+                          return AnswerChip(
+                            label: item.$1,
+                            emoji: item.$2,
+                            selected: _vibe == item.$1,
+                            onTap: () {
+                              setState(() => _vibe = item.$1);
+                              _scrollToBottom();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-            // Q3: Group
-            if (_vibe != null)
-              QuestionCard(
-                question: AppStrings.whoIsJoining,
-                stepNumber: 3,
-                totalSteps: 6,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    (AppStrings.groupSolo, '🧍'),
-                    (AppStrings.groupFriends, '👫'),
-                    (AppStrings.groupFamily, '👨‍👩‍👧'),
-                    (AppStrings.groupPartner, '💑'),
-                  ].map((item) {
-                    return AnswerChip(
-                      label: item.$1,
-                      emoji: item.$2,
-                      selected: _group == item.$1,
-                      onTap: () {
-                        setState(() => _group = item.$1);
-                        _scrollToBottom();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
+                  // Q3: Group
+                  if (_vibe != null)
+                    QuestionCard(
+                      question: AppStrings.whoIsJoining,
+                      stepNumber: 3,
+                      totalSteps: 6,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          (AppStrings.groupSolo, '🧍'),
+                          (AppStrings.groupFriends, '👫'),
+                          (AppStrings.groupFamily, '👨‍👩‍👧'),
+                          (AppStrings.groupPartner, '💑'),
+                        ].map((item) {
+                          return AnswerChip(
+                            label: item.$1,
+                            emoji: item.$2,
+                            selected: _group == item.$1,
+                            onTap: () {
+                              setState(() => _group = item.$1);
+                              _scrollToBottom();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-            // Q4: Budget
-            if (_group != null)
-              QuestionCard(
-                question: AppStrings.whatsYourBudget,
-                stepNumber: 4,
-                totalSteps: 6,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    (AppStrings.budgetUnder500, '💰'),
-                    (AppStrings.budget500to1500, '💳'),
-                    (AppStrings.budget1500to3000, '💎'),
-                    (AppStrings.budgetNoLimit, '🤑'),
-                  ].map((item) {
-                    return AnswerChip(
-                      label: item.$1,
-                      emoji: item.$2,
-                      selected: _budget == item.$1,
-                      onTap: () {
-                        setState(() => _budget = item.$1);
-                        _scrollToBottom();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
+                  // Q4: Budget
+                  if (_group != null)
+                    QuestionCard(
+                      question: AppStrings.whatsYourBudget,
+                      stepNumber: 4,
+                      totalSteps: 6,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          (AppStrings.budgetUnder500, '💰'),
+                          (AppStrings.budget500to1500, '💳'),
+                          (AppStrings.budget1500to3000, '💎'),
+                          (AppStrings.budgetNoLimit, '🤑'),
+                        ].map((item) {
+                          return AnswerChip(
+                            label: item.$1,
+                            emoji: item.$2,
+                            selected: _budget == item.$1,
+                            onTap: () {
+                              setState(() => _budget = item.$1);
+                              _scrollToBottom();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-            // Q5: Transport
-            if (_budget != null)
-              QuestionCard(
-                question: AppStrings.howWillYouGetAround,
-                stepNumber: 5,
-                totalSteps: 6,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    (AppStrings.transportBike, '🏍️'),
-                    (AppStrings.transportCab, '🚕'),
-                    (AppStrings.transportPublic, '🚌'),
-                  ].map((item) {
-                    return AnswerChip(
-                      label: item.$1,
-                      emoji: item.$2,
-                      selected: _transport == item.$1,
-                      onTap: () {
-                        setState(() => _transport = item.$1);
-                        _scrollToBottom();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
+                  // Q5: Transport
+                  if (_budget != null)
+                    QuestionCard(
+                      question: AppStrings.howWillYouGetAround,
+                      stepNumber: 5,
+                      totalSteps: 6,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          (AppStrings.transportBike, '🏍️'),
+                          (AppStrings.transportCab, '🚕'),
+                          (AppStrings.transportPublic, '🚌'),
+                        ].map((item) {
+                          return AnswerChip(
+                            label: item.$1,
+                            emoji: item.$2,
+                            selected: _transport == item.$1,
+                            onTap: () {
+                              setState(() => _transport = item.$1);
+                              _scrollToBottom();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-            // Q6: Start time
-            if (_transport != null)
-              QuestionCard(
-                question: AppStrings.whenToStart,
-                stepNumber: 6,
-                totalSteps: 6,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    (AppStrings.startEarly, '🌅'),
-                    (AppStrings.startMorning, '☀️'),
-                    (AppStrings.startFlexible, '🕐'),
-                  ].map((item) {
-                    return AnswerChip(
-                      label: item.$1,
-                      emoji: item.$2,
-                      selected: _startTime == item.$1,
-                      onTap: () {
-                        setState(() => _startTime = item.$1);
-                        _scrollToBottom();
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
+                  // Q6: Start time
+                  if (_transport != null)
+                    QuestionCard(
+                      question: AppStrings.whenToStart,
+                      stepNumber: 6,
+                      totalSteps: 6,
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          (AppStrings.startEarly, '🌅'),
+                          (AppStrings.startMorning, '☀️'),
+                          (AppStrings.startFlexible, '🕐'),
+                        ].map((item) {
+                          return AnswerChip(
+                            label: item.$1,
+                            emoji: item.$2,
+                            selected: _startTime == item.$1,
+                            onTap: () {
+                              setState(() => _startTime = item.$1);
+                              _scrollToBottom();
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-            // Generate button
-            if (_allAnswered)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: PrimaryButton(
-                  label: AppStrings.generateTrip,
-                  onPressed: _generate,
-                )
-                    .animate()
-                    .scale(duration: 300.ms, curve: Curves.elasticOut)
-                    .fadeIn(),
-              ),
+                  // Generate button
+                  if (_allAnswered)
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: PrimaryButton(
+                        label: AppStrings.generateTrip,
+                        onPressed: _generate,
+                      )
+                          .animate()
+                          .scale(duration: 300.ms, curve: Curves.elasticOut)
+                          .fadeIn(),
+                    ),
 
-            const SizedBox(height: 24),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ), // Expanded
           ],
-        ),
+        ), // Column
         bottomNavigationBar: const AppBottomNav(currentIndex: 0),
       ),
     );
