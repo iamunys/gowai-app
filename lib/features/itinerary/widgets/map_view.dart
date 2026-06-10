@@ -18,6 +18,10 @@ class MapView extends StatefulWidget {
   /// animate the camera (zoom-to-stop, etc.).
   final void Function(GoogleMapController)? onMapReady;
 
+  /// Padding applied to the map (e.g. to keep markers/controls clear of a
+  /// floating panel overlapping the bottom of the map).
+  final EdgeInsets padding;
+
   const MapView({
     super.key,
     required this.stops,
@@ -26,6 +30,7 @@ class MapView extends StatefulWidget {
     required this.onMarkerTap,
     this.externalMarkers,
     this.onMapReady,
+    this.padding = EdgeInsets.zero,
   });
 
   @override
@@ -34,6 +39,13 @@ class MapView extends StatefulWidget {
 
 class _MapViewState extends State<MapView> {
   GoogleMapController? _mapController;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   /// Fallback markers — used when the parent hasn't supplied externalMarkers yet.
   Set<Marker> get _defaultMarkers {
@@ -74,11 +86,12 @@ class _MapViewState extends State<MapView> {
   }
 
   void _fitBounds() {
+    if (_disposed || _mapController == null) return;
     final coords = widget.stops
         .where((s) => s.latLng != null)
         .map((s) => s.latLng!)
         .toList();
-    if (coords.isEmpty || _mapController == null) return;
+    if (coords.isEmpty) return;
 
     double minLat = coords.first.latitude;
     double maxLat = coords.first.latitude;
@@ -123,6 +136,7 @@ class _MapViewState extends State<MapView> {
         zoom: 12,
       ),
       style: isDark ? _nightMapStyle : null,
+      padding: widget.padding,
       // Prefer external markers (custom numbered circles) if available.
       markers: widget.externalMarkers ?? _defaultMarkers,
       polylines: _polylines,

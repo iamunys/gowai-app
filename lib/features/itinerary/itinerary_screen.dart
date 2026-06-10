@@ -112,9 +112,15 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   Future<ui.Image?> _loadNetworkImage(String? url) async {
     if (url == null || url.isEmpty) return null;
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) return null;
-      final codec = await ui.instantiateImageCodec(response.bodyBytes);
+      final codec = await ui.instantiateImageCodec(
+        response.bodyBytes,
+        targetWidth: 100,
+        targetHeight: 100,
+      );
       final frame = await codec.getNextFrame();
       return frame.image;
     } catch (_) {
@@ -150,14 +156,15 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       Rect srcRect;
       if (srcWidth / srcHeight > 1) {
         final cropWidth = srcHeight;
-        srcRect = Rect.fromLTWH(
-            (srcWidth - cropWidth) / 2, 0, cropWidth, srcHeight);
+        srcRect =
+            Rect.fromLTWH((srcWidth - cropWidth) / 2, 0, cropWidth, srcHeight);
       } else {
         final cropHeight = srcWidth;
         srcRect = Rect.fromLTWH(
             0, (srcHeight - cropHeight) / 2, srcWidth, cropHeight);
       }
       canvas.drawImageRect(photo, srcRect, imageRect, Paint());
+      photo.dispose();
     } else {
       // Fallback: location pin icon centered in the square.
       final iconPainter = TextPainter(
@@ -193,7 +200,8 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
 
     // Numbered badge overlapping the top-left corner.
     const badgeCenter = Offset(imgOffset, imgOffset);
-    canvas.drawCircle(badgeCenter, badgeRadius, Paint()..color = AppColors.primary);
+    canvas.drawCircle(
+        badgeCenter, badgeRadius, Paint()..color = AppColors.primary);
     canvas.drawCircle(
       badgeCenter,
       badgeRadius,
@@ -222,6 +230,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
     final picture = recorder.endRecording();
     final img = await picture.toImage(canvasSize.toInt(), canvasSize.toInt());
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    img.dispose();
     return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
   }
 
@@ -362,6 +371,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final panelHeight = MediaQuery.of(context).size.height * 0.6;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -371,247 +381,256 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       child: GestureDetector(
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         child: Scaffold(
+          extendBody: true,
+          extendBodyBehindAppBar: true,
           backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              onPressed: () => context.pop(),
+              icon: const _OverlayIconButton(
+                child: Icon(Icons.arrow_back, color: AppColors.textPrimary),
+              ),
+            ),
+            actions: [
+              GestureDetector(
+                onTap: _openInGoogleMaps,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    boxShadow: [
+                      BoxShadow(color: AppColors.cardShadow, blurRadius: 8),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.navigation_rounded,
+                          color: AppColors.textPrimary, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Open Route",
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(duration: 300.ms),
+              const SizedBox(width: 12),
+              // if (!widget.readOnly)
+              //   IconButton(
+              //     onPressed: _shareTrip,
+              //     icon: const Icon(Icons.share_outlined,
+              //         color: AppColors.textPrimary),
+              //   ),
+            ],
+          ),
           body: Stack(
             children: [
-              Column(
-                children: [
-                  // ── Map section (45% of screen height) ──────────────────
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.38,
-                    child: Stack(
-                      children: [
-                        if (_loadingRoute)
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Lottie.asset(
-                                  'assets/lottie/loader.json',
-                                  width: 150,
-                                  height: 150,
-                                  fit: BoxFit.contain,
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Drawing your route...',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF6C63FF),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          MapView(
-                            stops: _trip.stops,
-                            routePoints: _routePoints,
-                            selectedIndex: _selectedStop,
-                            // Pass custom numbered markers once ready.
-                            externalMarkers: _markersReady ? _markers : null,
-                            onMapReady: (ctrl) {
-                              if (!_mapCompleter.isCompleted) {
-                                _mapCompleter.complete(ctrl);
-                              }
-                            },
-                            onMarkerTap: _zoomToStop,
-                          ),
-
-                        // Back + Share overlay buttons
-                        SafeArea(
-                          child: Row(
+              // ── Full-screen map ──────────────────────────────────────
+              Positioned.fill(
+                child: _loadingRoute
+                    ? Container(
+                        color: AppColors.background,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              IconButton(
-                                onPressed: () => context.pop(),
-                                icon: const _OverlayIconButton(
-                                  child: Icon(Icons.arrow_back,
-                                      color: AppColors.textPrimary),
+                              Lottie.asset(
+                                'assets/lottie/loader.json',
+                                width: 150,
+                                height: 150,
+                                fit: BoxFit.contain,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Drawing your route...',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: const Color(0xFF6C63FF),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              const Spacer(),
-                              // if (!widget.readOnly)
-                              //   IconButton(
-                              //     onPressed: _shareTrip,
-                              //     icon: const _OverlayIconButton(
-                              //       child: Icon(Icons.share,
-                              //           color: AppColors.primary),
-                              //     ),
-                              //   ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    : MapView(
+                        stops: _trip.stops,
+                        routePoints: _routePoints,
+                        selectedIndex: _selectedStop,
+                        // Pass custom numbered markers once ready.
+                        externalMarkers: _markersReady ? _markers : null,
+                        // Keep markers/controls clear of the floating panel.
+                        padding: EdgeInsets.only(bottom: panelHeight),
+                        onMapReady: (ctrl) {
+                          if (!_mapCompleter.isCompleted) {
+                            _mapCompleter.complete(ctrl);
+                          }
+                        },
+                        onMarkerTap: _zoomToStop,
+                      ),
+              ),
 
-                  // ── Trip header ─────────────────────────────────────────
-                  Container(
+              // ── Floating bottom panel ────────────────────────────────
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: double.infinity,
+                  height: panelHeight,
+                  decoration: BoxDecoration(
                     color: AppColors.surface,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _trip.destination,
-                                overflow: TextOverflow.ellipsis,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(28)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(25),
+                        blurRadius: 20,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Drag handle
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+
+                      // ── Trip header ─────────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _trip.destination,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_trip.stops.length} stops · ${_trip.vibe} · ${_trip.groupType}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (widget.readOnly)
+                              TextButton(
+                                onPressed: () => context.go('/planner'),
+                                child: Text(
+                                  'Plan Your Own Trip',
+                                  style: GoogleFonts.poppins(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // ── Stops section ────────────────────────────────
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                              child: Text(
+                                'Your Itinerary',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
-                              Text(
-                                '${_trip.stops.length} stops · ${_trip.vibe} · ${_trip.groupType}',
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary,
+                            ),
+                            Expanded(
+                              child: ListView.builder(
+                                controller: _scrollCtrl,
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.only(
+                                  left: 20,
+                                  right: 20,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (widget.readOnly)
-                          TextButton(
-                            onPressed: () => context.go('/planner'),
-                            child: Text(
-                              'Plan Your Own Trip',
-                              style: GoogleFonts.poppins(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Fix 2: Open Route in Google Maps button ─────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: GestureDetector(
-                      onTap: _openInGoogleMaps,
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF6C63FF),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF6C63FF).withAlpha(30),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.map_outlined,
-                                color: Color(0xFF6C63FF), size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Open Route in Google Maps',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF6C63FF),
+                                itemCount: _trip.stops.length,
+                                itemBuilder: (_, i) => StopCard(
+                                  stop: _trip.stops[i],
+                                  isSelected: i == _selectedStop,
+                                  // Fix 4: tap → zoom map + scroll card list.
+                                  onTap: () => _zoomToStop(i),
+                                ).animate().slideX(
+                                    begin: 0.2,
+                                    duration: 300.ms,
+                                    delay: Duration(milliseconds: i * 80)),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.arrow_forward_ios,
-                                size: 14, color: Color(0xFF6C63FF)),
                           ],
                         ),
                       ),
-                    ).animate().fadeIn(duration: 300.ms),
-                  ),
 
-                  // ── Stops section ───────────────────────────────────────
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      // ── Save button ──────────────────────────────────
+                      if (!widget.readOnly)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                          child: Text(
-                            'Your Itinerary',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                          padding: EdgeInsets.fromLTRB(
+                              20, 8, 20, bottomPad > 0 ? bottomPad : 16),
+                          child: ElevatedButton.icon(
+                            onPressed: _trip.id != null ? null : _saveTrip,
+                            icon: Icon(
+                              _trip.id != null
+                                  ? Icons.check_circle
+                                  : Icons.bookmark_border,
+                              color: Colors.white,
+                            ),
+                            label: Text(
+                              _trip.id != null
+                                  ? 'Trip Saved ✓'
+                                  : AppStrings.saveTrip,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _trip.id != null
+                                  ? AppColors.accent
+                                  : AppColors.primary,
+                              minimumSize: const Size(double.infinity, 52),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
                           ),
-                        ),
-                        // Fix 3: bottom padding so last card clears the
-                        // save button and device nav bar.
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _scrollCtrl,
-                            scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.only(
-                              left: 20,
-                              right: 20,
-                              bottom: bottomPad,
-                            ),
-                            itemCount: _trip.stops.length,
-                            itemBuilder: (_, i) => StopCard(
-                              stop: _trip.stops[i],
-                              isSelected: i == _selectedStop,
-                              // Fix 4: tap → zoom map + scroll card list.
-                              onTap: () => _zoomToStop(i),
-                            ).animate().slideX(
-                                begin: 0.2,
-                                duration: 300.ms,
-                                delay: Duration(milliseconds: i * 80)),
-                          ),
-                        ),
-                      ],
-                    ),
+                        )
+                      else
+                        SizedBox(height: bottomPad > 0 ? bottomPad : 16),
+                    ],
                   ),
-
-                  // ── Save button ─────────────────────────────────────────
-                  if (!widget.readOnly)
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPad + 16),
-                      child: ElevatedButton.icon(
-                        onPressed: _trip.id != null ? null : _saveTrip,
-                        icon: Icon(
-                          _trip.id != null
-                              ? Icons.check_circle
-                              : Icons.bookmark_border,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          _trip.id != null
-                              ? 'Trip Saved ✓'
-                              : AppStrings.saveTrip,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _trip.id != null
-                              ? AppColors.accent
-                              : AppColors.primary,
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
+
               if (_saving) const LoadingOverlay(message: 'Saving your trip...'),
             ],
           ),

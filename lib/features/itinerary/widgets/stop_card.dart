@@ -92,6 +92,7 @@ class StopCard extends StatelessWidget {
                           imageUrl: stop.photoUrl!,
                           width: double.infinity,
                           fit: BoxFit.cover,
+                          memCacheWidth: 520,
                           placeholder: (_, __) => Center(
                             child: Lottie.asset(
                               'assets/lottie/loader.json',
