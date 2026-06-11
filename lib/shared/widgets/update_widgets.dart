@@ -28,7 +28,8 @@ class MinorUpdateBanner extends StatelessWidget {
   });
 
   Future<void> _openStore() async {
-    final url = Platform.isIOS ? AppVersions.appStoreUrl : AppVersions.playStoreUrl;
+    final url =
+        Platform.isIOS ? AppVersions.appStoreUrl : AppVersions.playStoreUrl;
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -78,7 +79,7 @@ class MinorUpdateBanner extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF6C63FF),
+                  color: AppColors.primary,
                 ),
               ),
             ),
@@ -117,7 +118,8 @@ class MajorUpdateDialog extends StatelessWidget {
   ];
 
   Future<void> _openStore() async {
-    final url = Platform.isIOS ? AppVersions.appStoreUrl : AppVersions.playStoreUrl;
+    final url =
+        Platform.isIOS ? AppVersions.appStoreUrl : AppVersions.playStoreUrl;
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -151,12 +153,10 @@ class MajorUpdateDialog extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // ── Rocket animation ─────────────────────────────────────
-                Text(
+                const Text(
                   '🚀',
-                  style: const TextStyle(fontSize: 72),
-                )
-                    .animate(onPlay: (c) => c.repeat(reverse: true))
-                    .moveY(
+                  style: TextStyle(fontSize: 72),
+                ).animate(onPlay: (c) => c.repeat(reverse: true)).moveY(
                       begin: -8,
                       end: 8,
                       duration: 800.ms,
@@ -172,7 +172,7 @@ class MajorUpdateDialog extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: AppColors.ink,
                   ),
                 ),
 
@@ -183,7 +183,7 @@ class MajorUpdateDialog extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F0FF),
+                    color: AppColors.primarySurface,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -191,7 +191,7 @@ class MajorUpdateDialog extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF6C63FF),
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
@@ -225,7 +225,7 @@ class MajorUpdateDialog extends StatelessWidget {
                             item,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
-                              color: AppColors.textPrimary,
+                              color: AppColors.ink,
                               height: 1.4,
                             ),
                           ),
@@ -243,13 +243,11 @@ class MajorUpdateDialog extends StatelessWidget {
                   height: 54,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6C63FF), Color(0xFF4B44CC)],
-                      ),
+                      gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6C63FF).withAlpha(80),
+                          color: AppColors.primary.withAlpha(80),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -285,7 +283,7 @@ class MajorUpdateDialog extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: const Color(0xFF9CA3AF),
+                    color: AppColors.placeholder,
                     height: 1.5,
                   ),
                 ),

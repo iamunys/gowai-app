@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../constants/api_endpoints.dart';
 
 class DirectionsService {
+  /// The route is decorative (the itinerary works without it), so fail fast
+  /// rather than keep the "Drawing your route" pill up indefinitely.
+  static const _timeout = Duration(seconds: 15);
+
   Future<List<LatLng>> getRoutePoints(List<LatLng> coordinates) async {
     if (coordinates.length < 2) return coordinates;
 
@@ -28,10 +33,25 @@ class DirectionsService {
 
     final uri = Uri.parse(ApiEndpoints.directions)
         .replace(queryParameters: params);
-    final response = await http.get(uri);
-    if (response.statusCode != 200) return coordinates;
+    final response = await http.get(uri).timeout(_timeout);
+    if (response.statusCode != 200) {
+      if (kDebugMode) {
+        debugPrint('[Directions] HTTP ${response.statusCode} — '
+            'falling back to straight lines between stops');
+      }
+      return coordinates;
+    }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
+    // The API reports failures (REQUEST_DENIED, OVER_QUERY_LIMIT,
+    // ZERO_RESULTS…) inside a 200 response. Without this check those
+    // errors silently degrade the route to straight stop-to-stop lines.
+    final status = data['status'] as String?;
+    if (status != 'OK' && kDebugMode) {
+      debugPrint('[Directions] status=$status '
+          '${data['error_message'] ?? ''} — '
+          'falling back to straight lines between stops');
+    }
     final routes = data['routes'] as List<dynamic>?;
     if (routes == null || routes.isEmpty) return coordinates;
 

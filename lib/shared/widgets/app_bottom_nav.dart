@@ -9,10 +9,9 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Background + indicator colors come from navigationBarTheme.
     return NavigationBar(
       selectedIndex: currentIndex,
-      backgroundColor: AppColors.surface,
-      indicatorColor: AppColors.primary.withAlpha(30),
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.explore_outlined),

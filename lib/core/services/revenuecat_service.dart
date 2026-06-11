@@ -123,14 +123,14 @@ class RevenueCatService {
   Future<void> debugOfferings() async {
     try {
       final offerings = await Purchases.getOfferings();
-      print('Current offering: ${offerings.current?.identifier}');
-      print('All offerings: ${offerings.all.keys}');
+      debugPrint('Current offering: ${offerings.current?.identifier}');
+      debugPrint('All offerings: ${offerings.all.keys}');
 
       offerings.current?.availablePackages.forEach((p) {
-        print('Package: ${p.identifier} — ${p.storeProduct.identifier}');
+        debugPrint('Package: ${p.identifier} — ${p.storeProduct.identifier}');
       });
     } catch (e) {
-      print('Offerings error: $e');
+      debugPrint('Offerings error: $e');
     }
   }
 }

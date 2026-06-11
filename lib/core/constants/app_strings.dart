@@ -90,8 +90,13 @@ class AppStrings {
   static const offlineSave = 'Offline trip saving';
   static const pdfExport = 'PDF export';
   static const priorityAI = 'Priority AI processing';
+  // Price FALLBACKS only — shown while RevenueCat offerings load. Live
+  // store prices (PlanPricing.fromOfferings) always take precedence.
   static const monthlyPrice = '₹99/month';
   static const yearlyPrice = '₹799/year';
+  static const monthlyPriceBare = '₹99';
+  static const yearlyPriceBare = '₹799';
+  static const savingsFallback = 'Save 33%';
   static const startFreeTrial = 'Start Free Trial';
   static const restorePurchase = 'Restore Purchase';
 

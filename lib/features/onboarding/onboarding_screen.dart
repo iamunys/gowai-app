@@ -23,19 +23,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       emoji: '🗺️',
       title: AppStrings.onboarding1Title,
       subtitle: AppStrings.onboarding1Subtitle,
-      color: Color(0xFF6C63FF),
+      color: AppColors.primary,
     ),
     _OnboardingPage(
       emoji: '📍',
       title: AppStrings.onboarding2Title,
       subtitle: AppStrings.onboarding2Subtitle,
-      color: Color(0xFF00C896),
+      color: AppColors.accent,
     ),
     _OnboardingPage(
       emoji: '✈️',
       title: AppStrings.onboarding3Title,
       subtitle: AppStrings.onboarding3Subtitle,
-      color: Color(0xFFF59E0B),
+      color: AppColors.warning,
     ),
   ];
 
@@ -151,7 +151,7 @@ class _PageContent extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: AppColors.ink,
               ),
               textAlign: TextAlign.center,
             )

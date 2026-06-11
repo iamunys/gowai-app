@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/models/trip_stop.dart';
 
 class MapView extends StatefulWidget {
   final List<TripStop> stops;
-  final List<LatLng> routePoints;
+
+  /// Pre-built by the parent (see ItineraryScreen._buildPolylines) so the
+  /// polyline isn't recomputed/recreated on every MapView rebuild.
+  final Set<Polyline> polylines;
   final int selectedIndex;
   final Function(int) onMarkerTap;
 
@@ -25,7 +27,7 @@ class MapView extends StatefulWidget {
   const MapView({
     super.key,
     required this.stops,
-    required this.routePoints,
+    required this.polylines,
     required this.selectedIndex,
     required this.onMarkerTap,
     this.externalMarkers,
@@ -41,6 +43,35 @@ class _MapViewState extends State<MapView> {
   GoogleMapController? _mapController;
   bool _disposed = false;
 
+  // Fix 4: cache the fallback marker set instead of rebuilding it (a getter
+  // recomputed on every build) — only regenerate when the stops or selection
+  // actually change.
+  late Set<Marker> _cachedDefaultMarkers;
+
+  // Created once — GoogleMap only reads initialCameraPosition at platform
+  // view creation, so recreating it on rebuild is wasted work at best and
+  // a camera reset at worst.
+  late final CameraPosition _initialCameraPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialCameraPosition = CameraPosition(target: _initialTarget, zoom: 12);
+    _cachedDefaultMarkers = _buildDefaultMarkers();
+  }
+
+  @override
+  void didUpdateWidget(covariant MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Default markers are only shown while externalMarkers is null, so skip
+    // regenerating them once the parent has supplied its own set.
+    if (widget.externalMarkers == null &&
+        (!identical(oldWidget.stops, widget.stops) ||
+            oldWidget.selectedIndex != widget.selectedIndex)) {
+      _cachedDefaultMarkers = _buildDefaultMarkers();
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -48,41 +79,22 @@ class _MapViewState extends State<MapView> {
   }
 
   /// Fallback markers — used when the parent hasn't supplied externalMarkers yet.
-  Set<Marker> get _defaultMarkers {
-    return widget.stops
-        .where((s) => s.latLng != null)
-        .map((s) {
-          final isSelected =
-              widget.stops.indexOf(s) == widget.selectedIndex;
-          return Marker(
-            markerId: MarkerId('stop_${s.stopNumber}'),
-            position: s.latLng!,
-            infoWindow: InfoWindow(title: s.name, snippet: s.time),
-            icon: isSelected
-                ? BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueViolet)
-                : BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueAzure),
-            onTap: () {
-              final idx = widget.stops.indexOf(s);
-              widget.onMarkerTap(idx);
-            },
-          );
-        })
-        .toSet();
-  }
-
-  Set<Polyline> get _polylines {
-    if (widget.routePoints.isEmpty) return {};
-    return {
-      Polyline(
-        polylineId: const PolylineId('route'),
-        points: widget.routePoints,
-        color: AppColors.primary,
-        width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(8)],
-      ),
-    };
+  Set<Marker> _buildDefaultMarkers() {
+    return widget.stops.where((s) => s.latLng != null).map((s) {
+      final isSelected = widget.stops.indexOf(s) == widget.selectedIndex;
+      return Marker(
+        markerId: MarkerId('stop_${s.stopNumber}'),
+        position: s.latLng!,
+        infoWindow: InfoWindow(title: s.name, snippet: s.time),
+        icon: isSelected
+            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet)
+            : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        onTap: () {
+          final idx = widget.stops.indexOf(s);
+          widget.onMarkerTap(idx);
+        },
+      );
+    }).toSet();
   }
 
   void _fitBounds() {
@@ -127,22 +139,24 @@ class _MapViewState extends State<MapView> {
     // Follow the device theme: night style in dark mode, default light map
     // in day mode. MediaQuery rebuilds this widget when brightness changes,
     // so the map switches automatically with day/night.
-    final isDark =
-        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
 
     return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: _initialTarget,
-        zoom: 12,
-      ),
+      initialCameraPosition: _initialCameraPosition,
       style: isDark ? _nightMapStyle : null,
       padding: widget.padding,
-      // Prefer external markers (custom numbered circles) if available.
-      markers: widget.externalMarkers ?? _defaultMarkers,
-      polylines: _polylines,
+      // Prefer external markers (lightweight numbered circles) if available.
+      markers: widget.externalMarkers ?? _cachedDefaultMarkers,
+      polylines: widget.polylines,
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
       mapType: MapType.normal,
+      // Must stay false: this screen relies on camera animation (fit bounds,
+      // zoom-to-stop) and custom styling. Lite mode (Android) renders a
+      // static bitmap that ignores the night style — which made the white
+      // dark-mode polyline invisible on a light map — and silently drops
+      // animateCamera calls.
+      liteModeEnabled: false,
       onMapCreated: (ctrl) {
         _mapController = ctrl;
         // Expose controller to parent for camera animation.

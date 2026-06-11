@@ -17,26 +17,26 @@ class AppTheme {
         headlineLarge: GoogleFonts.poppins(
           fontSize: 28,
           fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
         headlineMedium: GoogleFonts.poppins(
           fontSize: 22,
           fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
         titleLarge: GoogleFonts.poppins(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
         titleMedium: GoogleFonts.poppins(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
         bodyLarge: GoogleFonts.poppins(
           fontSize: 15,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
         bodyMedium: GoogleFonts.poppins(
           fontSize: 14,
@@ -53,9 +53,52 @@ class AppTheme {
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: AppColors.ink,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.ink),
+      ),
+      // ── Component themes ───────────────────────────────────────────────
+      // These codify the styles the app already uses everywhere, so call
+      // sites can drop their inline styleFrom(...) when they match. Note:
+      // elevation defaults to 0 — the app's design is flat throughout.
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: GoogleFonts.poppins(fontSize: 14),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primary.withAlpha(30),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -64,11 +107,11 @@ class AppTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

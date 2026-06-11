@@ -90,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: AppColors.ink,
                         ),
                       ).animate().slideX(begin: -0.2).fadeIn(duration: 400.ms),
                       const SizedBox(height: 8),
@@ -229,14 +229,10 @@ class _SocialButton extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 15,
             fontWeight: FontWeight.w500,
-            color: AppColors.textPrimary,
+            color: AppColors.ink,
           ),
         ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE5E7EB)),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
+        // Border + shape come from outlinedButtonTheme.
       ),
     );
   }

@@ -1,10 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lottie/lottie.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/trip_stop.dart';
+import '../../../shared/widgets/cached_image.dart';
 
 class StopCard extends StatelessWidget {
   final TripStop stop;
@@ -44,9 +43,11 @@ class StopCard extends StatelessWidget {
   }
 
   Future<void> _openInMaps() async {
-    final query =
-        stop.latLng != null ? '${stop.latLng!.latitude},${stop.latLng!.longitude}' : stop.name;
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+    final query = stop.latLng != null
+        ? '${stop.latLng!.latitude},${stop.latLng!.longitude}'
+        : stop.name;
+    final uri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
@@ -85,26 +86,12 @@ class StopCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(14)),
-                child: SizedBox(
+                child: CachedImage(
+                  url: stop.photoUrl,
                   width: double.infinity,
-                  child: stop.photoUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: stop.photoUrl!,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 520,
-                          placeholder: (_, __) => Center(
-                            child: Lottie.asset(
-                              'assets/lottie/loader.json',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) =>
-                              _PlaceholderImage(category: stop.category),
-                        )
-                      : _PlaceholderImage(category: stop.category),
+                  height: double.infinity,
+                  memCacheWidth: 520,
+                  errorWidget: _PlaceholderImage(category: stop.category),
                 ),
               ),
             ),
@@ -124,7 +111,7 @@ class StopCard extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: AppColors.ink,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -135,8 +122,7 @@ class StopCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(_categoryIcon,
-                          size: 14, color: AppColors.primary),
+                      Icon(_categoryIcon, size: 14, color: AppColors.primary),
                       const SizedBox(width: 4),
                       Text(
                         stop.time,

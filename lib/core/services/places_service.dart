@@ -6,6 +6,11 @@ import '../constants/api_endpoints.dart';
 import '../models/trip_stop.dart';
 
 class PlacesService {
+  /// Bounded per-stop lookup: enrichStops awaits all stops in parallel, so
+  /// one stalled request without a timeout would hang the whole generation
+  /// flow after Claude had already succeeded.
+  static const _timeout = Duration(seconds: 15);
+
   Future<TripStop> enrichStop(TripStop stop) async {
     final apiKey = dotenv.env['GOOGLE_PLACES_API_KEY']!;
     try {
@@ -15,7 +20,7 @@ class PlacesService {
           'key': apiKey,
         },
       );
-      final response = await http.get(uri);
+      final response = await http.get(uri).timeout(_timeout);
       if (response.statusCode != 200) return stop;
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;

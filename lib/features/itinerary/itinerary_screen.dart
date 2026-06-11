@@ -1,18 +1,14 @@
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
-import 'package:lottie/lottie.dart' hide Marker;
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:uuid/uuid.dart';
-import '../../core/constants/api_endpoints.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/models/trip.dart';
@@ -23,6 +19,13 @@ import '../../shared/widgets/error_snackbar.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'widgets/map_view.dart';
 import 'widgets/stop_card.dart';
+
+/// TEMPORARY memory-bisect switch (2026-06-11) — DELETE AFTER DIAGNOSIS.
+/// true = replace the GoogleMap with a plain box for one test run. If the
+/// "Terminated due to memory issue" jetsam kill stops while this is on, the
+/// leak is in the map/platform-view path (Flutter engine ↔ Xcode 26.2 SDK ↔
+/// GoogleMaps pod), not in app code.
+const bool kBisectDisableMap = true;
 
 class ItineraryScreen extends StatefulWidget {
   final Trip trip;
@@ -47,11 +50,15 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   final _mapCompleter = Completer<GoogleMapController>();
 
   int _selectedStop = 0;
-  List<LatLng> _routePoints = [];
+  Set<Polyline> _polylines = {};
   Set<Marker> _markers = {};
   bool _markersReady = false;
   bool _saving = false;
   bool _loadingRoute = true;
+  // Fix 2: the GoogleMap platform view is created one frame after the first
+  // paint so the initial layout (panel, list, app bar) shows up instantly
+  // instead of waiting on native map/tile setup.
+  bool _mapReady = false;
   late Trip _trip;
 
   @override
@@ -60,6 +67,10 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
     _trip = widget.trip;
     _loadRoute();
     _loadMarkers();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _mapReady = true);
+    });
   }
 
   // ─── Route loading ──────────────────────────────────────────────────────────
@@ -69,146 +80,141 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
         .where((s) => s.latLng != null)
         .map((s) => s.latLng!)
         .toList();
+    if (kDebugMode) {
+      debugPrint('[Itinerary] ${_trip.stops.length} stops, '
+          '${coords.length} with coordinates');
+      for (final c in coords) {
+        debugPrint('[Itinerary] stop @ lat=${c.latitude}, lng=${c.longitude}');
+      }
+    }
     if (coords.length >= 2) {
       try {
         final points = await _directionsService.getRoutePoints(coords);
-        if (mounted) setState(() => _routePoints = points);
-      } catch (_) {}
+        if (kDebugMode) {
+          debugPrint('[Itinerary] route resolved: ${points.length} points'
+              '${points.isNotEmpty ? ', first=${points.first}' : ''}');
+        }
+        // Fix 3: cap the polyline at ~100 points. Long driving routes can
+        // return several hundred points from the Directions API; rendering
+        // (and re-diffing) that many points on every map update is wasted
+        // work since the visual difference beyond ~100 pts is negligible.
+        final simplified = _simplifyRoute(points);
+        if (mounted) {
+          setState(() => _polylines = _buildPolylines(simplified));
+        }
+      } catch (e) {
+        // Route is decorative — the map still works without it — but the
+        // failure must not be invisible during development.
+        if (kDebugMode) debugPrint('[Itinerary] route load failed: $e');
+      }
+    } else if (kDebugMode) {
+      debugPrint('[Itinerary] skipping route: fewer than 2 stops have '
+          'coordinates (Places enrichment may have failed)');
     }
     if (mounted) setState(() => _loadingRoute = false);
   }
 
-  // ─── Fix 5: Custom numbered circular map markers ────────────────────────────
+  /// Down-samples [points] to at most [maxPoints], always keeping the first
+  /// and last point so the route still spans the full trip.
+  List<LatLng> _simplifyRoute(List<LatLng> points, {int maxPoints = 100}) {
+    if (points.length <= maxPoints) return points;
+    final step = (points.length / maxPoints).ceil();
+    final simplified = <LatLng>[
+      for (int i = 0; i < points.length; i += step) points[i],
+    ];
+    if (simplified.last != points.last) simplified.add(points.last);
+    return simplified;
+  }
 
-  Future<void> _loadMarkers() async {
-    final markers = <Marker>{};
-    for (int i = 0; i < _trip.stops.length; i++) {
-      final stop = _trip.stops[i];
-      if (stop.latLng == null) continue;
-      final icon = await _createNumberedMarker(i + 1, stop.photoUrl);
-      markers.add(
-        Marker(
-          markerId: MarkerId('stop_${stop.stopNumber}'),
-          position: stop.latLng!,
-          icon: icon,
-          infoWindow: InfoWindow(
-            title: stop.name,
-            snippet: '${stop.time} · ${stop.durationMinutes}min',
+  /// Built once when the route loads — passed down as a ready-made [Set] so
+  /// MapView never has to recompute/recreate the polyline on every rebuild.
+  Set<Polyline> _buildPolylines(List<LatLng> points) {
+    if (points.isEmpty) return {};
+    final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    return {
+      Polyline(
+        polylineId: const PolylineId('route'),
+        points: points,
+        color: isDark ? AppColors.surface : AppColors.primary,
+        width: 4,
+        patterns: [PatternItem.dash(20), PatternItem.gap(8)],
+      ),
+    };
+  }
+
+  // ─── Fix 1: lightweight numbered map markers ────────────────────────────────
+
+  /// Numbered marker bitmaps depend only on the stop number, so they are
+  /// cached for the whole app session — reopening any itinerary skips the
+  /// canvas → PNG work entirely.
+  static final Map<int, BitmapDescriptor> _markerIconCache = {};
+
+  Future<BitmapDescriptor> _numberedMarkerIcon(int number) async {
+    final cached = _markerIconCache[number];
+    if (cached != null) return cached;
+    final icon = await _createNumberedMarker(number);
+    _markerIconCache[number] = icon;
+    return icon;
+  }
+
+  void _loadMarkers() {
+    // Fix 2/4: defer marker construction until after the first frame so the
+    // N canvas->image conversions below don't compete with the initial
+    // layout/paint, and don't run inside the same setState pass that shows
+    // the map.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final stops = _trip.stops;
+      final icons = await Future.wait([
+        for (int i = 0; i < stops.length; i++) _numberedMarkerIcon(i + 1),
+      ]);
+      final markers = <Marker>{};
+      for (int i = 0; i < stops.length; i++) {
+        final stop = stops[i];
+        if (stop.latLng == null) continue;
+        markers.add(
+          Marker(
+            markerId: MarkerId('stop_${stop.stopNumber}'),
+            position: stop.latLng!,
+            icon: icons[i],
+            infoWindow: InfoWindow(
+              title: stop.name,
+              snippet: '${stop.time} · ${stop.durationMinutes}min',
+            ),
+            onTap: () => _zoomToStop(i),
           ),
-          onTap: () => _zoomToStop(i),
-        ),
-      );
-    }
-    if (mounted) {
-      setState(() {
-        _markers = markers;
-        _markersReady = true;
-      });
-    }
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _markers = markers;
+          _markersReady = true;
+        });
+      }
+    });
   }
 
-  /// Loads a network image and decodes it for drawing on a [Canvas].
-  /// Returns null if the URL is missing or the fetch/decode fails.
-  Future<ui.Image?> _loadNetworkImage(String? url) async {
-    if (url == null || url.isEmpty) return null;
-    try {
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) return null;
-      final codec = await ui.instantiateImageCodec(
-        response.bodyBytes,
-        targetWidth: 100,
-        targetHeight: 100,
-      );
-      final frame = await codec.getNextFrame();
-      return frame.image;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Paints a square marker showing the stop's photo (or a placeholder)
-  /// with a circular numbered badge overlapping its top-left corner, then
-  /// converts it to a BitmapDescriptor for GoogleMap.
-  Future<BitmapDescriptor> _createNumberedMarker(
-      int number, String? photoUrl) async {
-    const double canvasSize = 130;
-    const double imgSize = 100;
-    const double imgOffset = 20;
-    const double badgeRadius = 18;
-    const imageRect = Rect.fromLTWH(imgOffset, imgOffset, imgSize, imgSize);
-    final rrect = RRect.fromRectAndRadius(imageRect, const Radius.circular(14));
-
-    final photo = await _loadNetworkImage(photoUrl);
+  /// Draws a small filled circle with the stop number — pure [Canvas] ops,
+  /// no network fetch and no image decoding. This replaces the previous
+  /// marker that downloaded each stop's photo, decoded it, and composited
+  /// it onto a 130x130 canvas — that was the main cause of the freeze on
+  /// trips with several stops (N concurrent HTTP requests + image decodes
+  /// + canvas->image conversions, all firing in initState).
+  Future<BitmapDescriptor> _createNumberedMarker(int number) async {
+    const double size = 84;
+    const center = Offset(size / 2, size / 2);
+    const radius = size / 2 - 4;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // Background placeholder behind the square.
-    canvas.drawRRect(rrect, Paint()..color = AppColors.primary.withAlpha(30));
-
-    canvas.save();
-    canvas.clipRRect(rrect);
-    if (photo != null) {
-      final srcWidth = photo.width.toDouble();
-      final srcHeight = photo.height.toDouble();
-      Rect srcRect;
-      if (srcWidth / srcHeight > 1) {
-        final cropWidth = srcHeight;
-        srcRect =
-            Rect.fromLTWH((srcWidth - cropWidth) / 2, 0, cropWidth, srcHeight);
-      } else {
-        final cropHeight = srcWidth;
-        srcRect = Rect.fromLTWH(
-            0, (srcHeight - cropHeight) / 2, srcWidth, cropHeight);
-      }
-      canvas.drawImageRect(photo, srcRect, imageRect, Paint());
-      photo.dispose();
-    } else {
-      // Fallback: location pin icon centered in the square.
-      final iconPainter = TextPainter(
-        text: TextSpan(
-          text: String.fromCharCode(Icons.place.codePoint),
-          style: TextStyle(
-            fontSize: 44,
-            fontFamily: Icons.place.fontFamily,
-            package: Icons.place.fontPackage,
-            color: AppColors.primary,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      iconPainter.paint(
-        canvas,
-        Offset(
-          imgOffset + (imgSize - iconPainter.width) / 2,
-          imgOffset + (imgSize - iconPainter.height) / 2,
-        ),
-      );
-    }
-    canvas.restore();
-
-    // White border around the square.
-    canvas.drawRRect(
-      rrect,
+    canvas.drawCircle(center, radius, Paint()..color = AppColors.primary);
+    canvas.drawCircle(
+      center,
+      radius,
       Paint()
         ..color = Colors.white
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
-    );
-
-    // Numbered badge overlapping the top-left corner.
-    const badgeCenter = Offset(imgOffset, imgOffset);
-    canvas.drawCircle(
-        badgeCenter, badgeRadius, Paint()..color = AppColors.primary);
-    canvas.drawCircle(
-      badgeCenter,
-      badgeRadius,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
     );
 
     final tp = TextPainter(
@@ -216,7 +222,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
         text: '$number',
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 20,
+          fontSize: 28,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -224,57 +230,20 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
     )..layout();
     tp.paint(
       canvas,
-      Offset(badgeCenter.dx - tp.width / 2, badgeCenter.dy - tp.height / 2),
+      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
     );
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(canvasSize.toInt(), canvasSize.toInt());
+    final img = await picture.toImage(size.toInt(), size.toInt());
     final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     img.dispose();
-    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
-  // ─── Fix 1: Share trip (reuses existing token) ──────────────────────────────
-
-  Future<void> _shareTrip() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    try {
-      Trip tripToShare = _trip;
-
-      // Save first if not yet saved
-      if (_trip.id == null && user != null) {
-        tripToShare = await _service.saveTrip(_trip, user.id);
-        if (mounted) setState(() => _trip = tripToShare);
-      }
-
-      // Reuse the existing shareToken — don't generate a new one every call.
-      final token = tripToShare.shareToken ?? const Uuid().v4();
-
-      if (tripToShare.id != null) {
-        // makePublic may return null if RLS hides the updated row; fall back
-        // to a local copy so sharing still works.
-        final updated = await _service.makePublic(tripToShare.id!, token);
-        tripToShare =
-            updated ?? tripToShare.copyWith(isPublic: true, shareToken: token);
-        if (mounted) setState(() => _trip = tripToShare);
-      }
-
-      final url = '${ApiEndpoints.shareBaseUrl}/$token';
-      final shareText =
-          '🗺️ Check out my Gowai trip to ${_trip.destination}!\n\n'
-          '📍 ${_trip.stops.length} amazing stops planned\n'
-          '🕐 Full day itinerary with timings & tips\n\n'
-          'View the full trip here:\n$url\n\n'
-          'Plan your own trip with Gowai 👇\nhttps://gowai.app';
-
-      await Share.share(
-        shareText,
-        subject: 'My Gowai Trip to ${_trip.destination}',
-      );
-    } catch (e) {
-      if (mounted) ErrorSnackbar.show(context, ErrorHandler.getMessage(e));
-    }
-  }
+  // NOTE: the in-app "share trip" button was removed with its _shareTrip
+  // handler (recoverable from git history). The share backend — share
+  // tokens, SupabaseService.makePublic and the /share/:token route — is
+  // still fully functional for existing shared links.
 
   // ─── Fix 2: Open full route in Google Maps app ──────────────────────────────
 
@@ -390,7 +359,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
             leading: IconButton(
               onPressed: () => context.pop(),
               icon: const _OverlayIconButton(
-                child: Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                child: Icon(Icons.arrow_back, color: AppColors.ink),
               ),
             ),
             actions: [
@@ -408,13 +377,13 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                   child: Row(
                     children: [
                       const Icon(Icons.navigation_rounded,
-                          color: AppColors.textPrimary, size: 16),
+                          color: AppColors.ink, size: 16),
                       const SizedBox(width: 4),
                       Text(
                         "Open Route",
                         style: GoogleFonts.poppins(
                           fontSize: 13,
-                          color: AppColors.textPrimary,
+                          color: AppColors.ink,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -423,60 +392,85 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                 ),
               ).animate().fadeIn(duration: 300.ms),
               const SizedBox(width: 12),
-              // if (!widget.readOnly)
-              //   IconButton(
-              //     onPressed: _shareTrip,
-              //     icon: const Icon(Icons.share_outlined,
-              //         color: AppColors.textPrimary),
-              //   ),
             ],
           ),
           body: Stack(
             children: [
               // ── Full-screen map ──────────────────────────────────────
               Positioned.fill(
-                child: _loadingRoute
-                    ? Container(
-                        color: AppColors.background,
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Lottie.asset(
-                                'assets/lottie/loader.json',
-                                width: 150,
-                                height: 150,
-                                fit: BoxFit.contain,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Drawing your route...',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: const Color(0xFF6C63FF),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
+                // Fix 2: the map mounts one frame after the first paint
+                // (`!_mapReady` is true for exactly one frame) so the panel,
+                // list and app bar appear instantly. Crucially it is NOT
+                // gated on the route fetch anymore — the Directions HTTP
+                // round-trip used to hide the whole map behind a loader;
+                // now the polyline simply streams in when it resolves.
+                child: (!_mapReady || kBisectDisableMap)
+                    ? const ColoredBox(color: AppColors.background)
+                    // Fix 4: RepaintBoundary isolates the GoogleMap's
+                    // PlatformView layer from the rest of the Stack, so
+                    // setState calls for unrelated state (e.g. _saving,
+                    // _selectedStop) don't force the map to repaint.
+                    : RepaintBoundary(
+                        child: MapView(
+                          stops: _trip.stops,
+                          polylines: _polylines,
+                          selectedIndex: _selectedStop,
+                          // Pass lightweight numbered markers once ready.
+                          externalMarkers: _markersReady ? _markers : null,
+                          // Keep markers/controls clear of the floating panel.
+                          padding: EdgeInsets.only(bottom: panelHeight),
+                          onMapReady: (ctrl) {
+                            if (!_mapCompleter.isCompleted) {
+                              _mapCompleter.complete(ctrl);
+                            }
+                          },
+                          onMarkerTap: _zoomToStop,
                         ),
-                      )
-                    : MapView(
-                        stops: _trip.stops,
-                        routePoints: _routePoints,
-                        selectedIndex: _selectedStop,
-                        // Pass custom numbered markers once ready.
-                        externalMarkers: _markersReady ? _markers : null,
-                        // Keep markers/controls clear of the floating panel.
-                        padding: EdgeInsets.only(bottom: panelHeight),
-                        onMapReady: (ctrl) {
-                          if (!_mapCompleter.isCompleted) {
-                            _mapCompleter.complete(ctrl);
-                          }
-                        },
-                        onMarkerTap: _zoomToStop,
                       ),
               ),
+
+              // ── Route-loading pill (non-blocking) ────────────────────
+              if (_loadingRoute)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + kToolbarHeight + 8,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: const BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.all(Radius.circular(20)),
+                        boxShadow: [
+                          BoxShadow(color: AppColors.cardShadow, blurRadius: 8),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Drawing your route...',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ).animate().fadeIn(duration: 200.ms),
+                ),
 
               // ── Floating bottom panel ────────────────────────────────
               Align(
@@ -524,7 +518,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
+                                      color: AppColors.ink,
                                     ),
                                   ),
                                   Text(
@@ -564,7 +558,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                                  color: AppColors.ink,
                                 ),
                               ),
                             ),

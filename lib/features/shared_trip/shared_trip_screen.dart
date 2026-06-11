@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lottie/lottie.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/trip.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/utils/error_handler.dart';
+import '../../shared/widgets/app_loader.dart';
 import '../itinerary/itinerary_screen.dart';
 
 class SharedTripScreen extends StatefulWidget {
@@ -65,31 +65,12 @@ class _SharedTripScreenState extends State<SharedTripScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return AnnotatedRegion<SystemUiOverlayStyle>(
+      return const AnnotatedRegion<SystemUiOverlayStyle>(
         value: _overlayStyle,
         child: Scaffold(
           backgroundColor: AppColors.background,
           body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Lottie.asset(
-                  'assets/lottie/loader.json',
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Loading your trip...',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6C63FF),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+            child: AppLoader(size: 200, message: 'Loading your trip...'),
           ),
         ),
       );

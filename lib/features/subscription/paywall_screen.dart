@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/models/plan_pricing.dart';
 import '../../core/services/revenuecat_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/error_snackbar.dart';
@@ -47,19 +48,26 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Future<void> _purchase() async {
+    final current = _offerings?.current;
+    final package =
+        _selectedPlan == 'monthly' ? current?.monthly : current?.annual;
+
+    // No package means offerings didn't load (network/store issue). Never
+    // grant Pro from this path — an earlier demo fallback did exactly that,
+    // handing out free subscriptions whenever RevenueCat was unreachable.
+    if (package == null) {
+      ErrorSnackbar.show(
+        context,
+        'Subscription plans are unavailable right now. '
+        'Please check your connection and try again.',
+      );
+      _loadOfferings(); // refresh in the background for the next attempt
+      return;
+    }
+
     setState(() => _loading = true);
     try {
-      final current = _offerings?.current;
-      final package =
-          _selectedPlan == 'monthly' ? current?.monthly : current?.annual;
-
-      bool success = false;
-      if (package != null) {
-        success = await _rcService.purchase(package);
-      } else {
-        // Fallback: mark as pro directly for demo
-        success = true;
-      }
+      final success = await _rcService.purchase(package);
 
       if (success) {
         final user = Supabase.instance.client.auth.currentUser;
@@ -71,6 +79,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
           context.pop();
         }
       }
+      // success == false covers both user cancellation and store errors —
+      // RevenueCatService.purchase returns a bare bool, so they can't be
+      // told apart here. Stay silent rather than show "failed" to someone
+      // who deliberately cancelled. (Distinguishing them needs a small
+      // RevenueCatService change — flagged for the integrations module.)
     } catch (e) {
       if (mounted) {
         ErrorSnackbar.show(context, 'Purchase failed. Please try again.');
@@ -146,7 +159,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: AppColors.ink,
                     ),
                     textAlign: TextAlign.center,
                   ).animate().fadeIn(delay: 100.ms),
@@ -175,30 +188,36 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Plan selector
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PlanCard(
-                          title: 'Monthly',
-                          price: AppStrings.monthlyPrice,
-                          selected: _selectedPlan == 'monthly',
-                          onTap: () =>
-                              setState(() => _selectedPlan = 'monthly'),
+                  // Plan selector — prices come from the store via
+                  // RevenueCat (PlanPricing falls back to the static
+                  // AppStrings values only while offerings load).
+                  Builder(builder: (context) {
+                    final pricing = PlanPricing.fromOfferings(_offerings);
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _PlanCard(
+                            title: 'Monthly',
+                            price: pricing.monthlyLabel,
+                            selected: _selectedPlan == 'monthly',
+                            onTap: () =>
+                                setState(() => _selectedPlan = 'monthly'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _PlanCard(
-                          title: 'Yearly',
-                          price: AppStrings.yearlyPrice,
-                          badge: 'Save 33%',
-                          selected: _selectedPlan == 'yearly',
-                          onTap: () => setState(() => _selectedPlan = 'yearly'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PlanCard(
+                            title: 'Yearly',
+                            price: pricing.yearlyLabel,
+                            badge: pricing.savingsLabel,
+                            selected: _selectedPlan == 'yearly',
+                            onTap: () =>
+                                setState(() => _selectedPlan = 'yearly'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ).animate().fadeIn(delay: 500.ms),
+                      ],
+                    );
+                  }).animate().fadeIn(delay: 500.ms),
 
                   const SizedBox(height: 24),
 
@@ -253,7 +272,7 @@ class _FeatureRow extends StatelessWidget {
             label,
             style: GoogleFonts.poppins(
               fontSize: 15,
-              color: AppColors.textPrimary,
+              color: AppColors.ink,
             ),
           ),
         ],
@@ -288,7 +307,7 @@ class _PlanCard extends StatelessWidget {
           color: selected ? AppColors.primary.withAlpha(15) : AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+            color: selected ? AppColors.primary : AppColors.border,
             width: selected ? 2 : 1,
           ),
         ),
@@ -316,7 +335,7 @@ class _PlanCard extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: AppColors.ink,
               ),
             ),
             const SizedBox(height: 4),
@@ -325,7 +344,7 @@ class _PlanCard extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: selected ? AppColors.primary : AppColors.textPrimary,
+                color: selected ? AppColors.primary : AppColors.ink,
               ),
             ),
           ],

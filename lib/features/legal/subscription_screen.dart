@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/models/plan_pricing.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/revenuecat_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/error_snackbar.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -23,6 +26,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   bool _isPro = false;
   UserProfile? _profile;
+  Offerings? _offerings;
   bool _loading = true;
   bool _restoring = false;
 
@@ -37,12 +41,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       final results = await Future.wait([
         _rcService.isPro(),
-        if (userId != null) _sbService.getProfile(userId) else Future.value(null),
+        if (userId != null)
+          _sbService.getProfile(userId)
+        else
+          Future.value(null),
+        // getOfferings catches internally and returns null on failure, so
+        // it can't fail this Future.wait.
+        _rcService.getOfferings(),
       ]);
       if (mounted) {
         setState(() {
           _isPro = results[0] as bool;
           _profile = results[1] as UserProfile?;
+          _offerings = results[2] as Offerings?;
         });
       }
     } catch (_) {
@@ -60,7 +71,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         await _sbService.setProStatus(userId, true);
         await _loadData();
         if (mounted) {
-          ErrorSnackbar.showSuccess(context, 'Purchase restored! Welcome to Pro 🎉');
+          ErrorSnackbar.showSuccess(
+              context, 'Purchase restored! Welcome to Pro 🎉');
         }
       } else {
         if (mounted) {
@@ -89,14 +101,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
-          title: Text(
-            'Subscription & Payments',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-              color: AppColors.textPrimary,
-            ),
-          ),
+          // Style comes from AppBarTheme.titleTextStyle.
+          title: const Text('Subscription & Payments'),
           centerTitle: false,
         ),
         body: _loading
@@ -107,7 +113,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ── Section 1: Current Plan ────────────────────────────
-                    _SectionTitle('Current Plan'),
+                    const _SectionTitle('Current Plan'),
                     const SizedBox(height: 12),
                     _CurrentPlanCard(
                       isPro: _isPro,
@@ -118,21 +124,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     const SizedBox(height: 28),
 
                     // ── Section 2: Plan Comparison ─────────────────────────
-                    _SectionTitle('Plan Comparison'),
+                    const _SectionTitle('Plan Comparison'),
                     const SizedBox(height: 12),
-                    _ComparisonTable(),
+                    const _ComparisonTable(),
 
                     const SizedBox(height: 28),
 
                     // ── Section 3: Pricing ─────────────────────────────────
-                    _SectionTitle('Pricing'),
+                    const _SectionTitle('Pricing'),
                     const SizedBox(height: 12),
-                    _PricingCard(),
+                    _PricingCard(pricing: PlanPricing.fromOfferings(_offerings)),
 
                     const SizedBox(height: 28),
 
                     // ── Section 4: Billing Info ────────────────────────────
-                    _SectionTitle('Billing Information'),
+                    const _SectionTitle('Billing Information'),
                     const SizedBox(height: 12),
                     _InfoCard(
                       items: [
@@ -146,14 +152,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     const SizedBox(height: 28),
 
                     // ── Section 5: How to Cancel ───────────────────────────
-                    _SectionTitle('How to Cancel'),
+                    const _SectionTitle('How to Cancel'),
                     const SizedBox(height: 12),
-                    _CancelInstructions(),
+                    const _CancelInstructions(),
 
                     const SizedBox(height: 28),
 
                     // ── Section 6: Restore Purchase ────────────────────────
-                    _SectionTitle('Restore Purchase'),
+                    const _SectionTitle('Restore Purchase'),
                     const SizedBox(height: 12),
                     _RestoreCard(
                       isRestoring: _restoring,
@@ -163,9 +169,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     const SizedBox(height: 28),
 
                     // ── Section 7: Contact ─────────────────────────────────
-                    _SectionTitle('Billing Support'),
+                    const _SectionTitle('Billing Support'),
                     const SizedBox(height: 12),
-                    _InfoCard(
+                    const _InfoCard(
                       items: [
                         'For billing questions or disputes, email us at gowai.app@gmail.com with your registered email and order ID.',
                         'We aim to respond within 24 hours on working days.',
@@ -189,14 +195,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.poppins(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
-    );
+    return Text(text, style: Theme.of(context).textTheme.titleMedium);
   }
 }
 
@@ -215,18 +214,12 @@ class _CurrentPlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isPro ? AppColors.warning.withAlpha(120) : AppColors.textSecondary.withAlpha(40),
-          width: isPro ? 2 : 1,
-        ),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
+    return AppCard(
+      border: Border.all(
+        color: isPro
+            ? AppColors.warning.withAlpha(120)
+            : AppColors.textSecondary.withAlpha(40),
+        width: isPro ? 2 : 1,
       ),
       child: Row(
         children: [
@@ -237,7 +230,8 @@ class _CurrentPlanCard extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: isPro
                             ? AppColors.warning.withAlpha(30)
@@ -249,7 +243,9 @@ class _CurrentPlanCard extends StatelessWidget {
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: isPro ? AppColors.warning : AppColors.textSecondary,
+                          color: isPro
+                              ? AppColors.warning
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ),
@@ -310,26 +306,20 @@ class _ComparisonTable extends StatelessWidget {
   const _ComparisonTable();
 
   static const _rows = [
-    ('Trips per month',     '3',  '∞'),
-    ('AI itinerary',        '✅', '✅'),
-    ('Google Maps route',   '✅', '✅'),
-    ('Save trips',          '✅', '✅'),
-    ('Share trips',         '✅', '✅'),
-    ('Offline save',        '❌', '✅'),
-    ('PDF export',          '❌', '✅'),
-    ('Priority AI',         '❌', '✅'),
+    ('Trips per month', '3', '∞'),
+    ('AI itinerary', '✅', '✅'),
+    ('Google Maps route', '✅', '✅'),
+    ('Save trips', '✅', '✅'),
+    ('Share trips', '✅', '✅'),
+    ('Offline save', '❌', '✅'),
+    ('PDF export', '❌', '✅'),
+    ('Priority AI', '❌', '✅'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           // Header row
@@ -337,7 +327,8 @@ class _ComparisonTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: AppColors.primary.withAlpha(15),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
               children: [
@@ -347,7 +338,7 @@ class _ComparisonTable extends StatelessWidget {
                       style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
+                          color: AppColors.ink)),
                 ),
                 Expanded(
                   child: Center(
@@ -395,7 +386,7 @@ class _ComparisonTable extends StatelessWidget {
                     child: Text(
                       row.$1,
                       style: GoogleFonts.poppins(
-                          fontSize: 13, color: AppColors.textPrimary),
+                          fontSize: 13, color: AppColors.ink),
                     ),
                   ),
                   Expanded(
@@ -423,25 +414,20 @@ class _ComparisonTable extends StatelessWidget {
 // ─── Pricing card ───────────────────────────────────────────────────────────
 
 class _PricingCard extends StatelessWidget {
-  const _PricingCard();
+  /// Live store prices (with static fallbacks while offerings load).
+  final PlanPricing pricing;
+
+  const _PricingCard({required this.pricing});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return AppCard(
       child: Row(
         children: [
           Expanded(
             child: _PriceBox(
               label: 'Monthly',
-              price: '₹99',
+              price: pricing.monthlyPrice,
               sub: 'per month',
               highlight: false,
             ),
@@ -450,9 +436,9 @@ class _PricingCard extends StatelessWidget {
           Expanded(
             child: _PriceBox(
               label: 'Yearly',
-              price: '₹799',
+              price: pricing.yearlyPrice,
               sub: 'per year',
-              badge: 'Save 33%',
+              badge: pricing.savingsLabel,
               highlight: true,
             ),
           ),
@@ -482,9 +468,8 @@ class _PriceBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: highlight
-            ? AppColors.primary.withAlpha(15)
-            : AppColors.background,
+        color:
+            highlight ? AppColors.primary.withAlpha(15) : AppColors.background,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: highlight
@@ -520,7 +505,7 @@ class _PriceBox extends StatelessWidget {
               style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: highlight ? AppColors.primary : AppColors.textPrimary)),
+                  color: highlight ? AppColors.primary : AppColors.ink)),
           Text(sub,
               style: GoogleFonts.poppins(
                   fontSize: 12, color: AppColors.textSecondary)),
@@ -538,15 +523,7 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: items
@@ -593,20 +570,12 @@ class _CancelInstructions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIOS = Platform.isIOS;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isIOS) ...[
-            _CancelStep(icon: Icons.apple, platform: 'iOS'),
+            const _CancelStep(icon: Icons.apple, platform: 'iOS'),
             const SizedBox(height: 8),
             Text(
               'Settings → Apple ID → Subscriptions → Gowai → Cancel Subscription',
@@ -614,7 +583,7 @@ class _CancelInstructions extends StatelessWidget {
                   fontSize: 14, color: AppColors.textSecondary, height: 1.6),
             ),
           ] else ...[
-            _CancelStep(icon: Icons.shop, platform: 'Android'),
+            const _CancelStep(icon: Icons.shop, platform: 'Android'),
             const SizedBox(height: 8),
             Text(
               'Play Store → Profile icon → Payments & subscriptions → Subscriptions → Gowai → Cancel subscription',
@@ -631,13 +600,14 @@ class _CancelInstructions extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.warning, size: 18),
+                const Icon(Icons.info_outline,
+                    color: AppColors.warning, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Cancel at least 24 hours before your renewal date to avoid being charged for the next period.',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: AppColors.textPrimary, height: 1.5),
+                        fontSize: 12, color: AppColors.ink, height: 1.5),
                   ),
                 ),
               ],
@@ -663,9 +633,7 @@ class _CancelStep extends StatelessWidget {
         Text(
           platform,
           style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary),
+              fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.ink),
         ),
       ],
     );
@@ -682,15 +650,7 @@ class _RestoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: AppColors.cardShadow, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

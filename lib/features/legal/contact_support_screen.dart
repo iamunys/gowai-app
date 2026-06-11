@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../shared/widgets/app_card.dart';
 
 class ContactSupportScreen extends StatefulWidget {
   const ContactSupportScreen({super.key});
@@ -102,14 +104,8 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
-          title: Text(
-            'Contact Support',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-              color: AppColors.textPrimary,
-            ),
-          ),
+          // Style comes from AppBarTheme.titleTextStyle.
+          title: const Text('Contact Support'),
           centerTitle: false,
         ),
         body: SingleChildScrollView(
@@ -137,19 +133,12 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                     const SizedBox(height: 14),
                     Text(
                       "We're here to help",
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+                      style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Usually respond within 24 hours',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
@@ -158,27 +147,11 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
               const SizedBox(height: 32),
 
               // ── Section 1: Quick Help Topics ──────────────────────────────
-              Text(
-                'Quick Help',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              Text('Quick Help', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
 
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                        color: AppColors.cardShadow,
-                        blurRadius: 12,
-                        offset: Offset(0, 4)),
-                  ],
-                ),
+              AppCard(
+                padding: EdgeInsets.zero,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Column(
@@ -191,8 +164,8 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       return Column(
                         children: [
                           InkWell(
-                            onTap: () => setState(() =>
-                                _expandedIndex = isExpanded ? null : i),
+                            onTap: () => setState(
+                                () => _expandedIndex = isExpanded ? null : i),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 14),
@@ -207,7 +180,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                                       style: GoogleFonts.poppins(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
-                                        color: AppColors.textPrimary,
+                                        color: AppColors.ink,
                                       ),
                                     ),
                                   ),
@@ -252,14 +225,8 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
               const SizedBox(height: 28),
 
               // ── Section 2: Contact Directly ───────────────────────────────
-              Text(
-                'Contact Us Directly',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              Text('Contact Us Directly',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
 
               SizedBox(
@@ -285,18 +252,9 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
               ),
               const SizedBox(height: 12),
 
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                        color: AppColors.cardShadow,
-                        blurRadius: 8,
-                        offset: Offset(0, 2)),
-                  ],
-                ),
+              const AppCard(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                radius: AppRadius.md,
                 child: Column(
                   children: [
                     _InfoRow(
@@ -304,13 +262,13 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       label: 'Response time',
                       value: 'Within 24 hours',
                     ),
-                    const Divider(height: 20),
+                    Divider(height: 20),
                     _InfoRow(
                       icon: Icons.work_outline_rounded,
                       label: 'Working hours',
                       value: 'Mon–Sat, 9AM–6PM IST',
                     ),
-                    const Divider(height: 20),
+                    Divider(height: 20),
                     _InfoRow(
                       icon: Icons.alternate_email_rounded,
                       label: 'Email',
@@ -323,28 +281,12 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
               const SizedBox(height: 28),
 
               // ── Section 3: App Info ────────────────────────────────────────
-              Text(
-                'App Info',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              Text('App Info', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
 
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                        color: AppColors.cardShadow,
-                        blurRadius: 8,
-                        offset: Offset(0, 2)),
-                  ],
-                ),
+              AppCard(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                radius: AppRadius.md,
                 child: Column(
                   children: [
                     _InfoRow(
@@ -403,7 +345,7 @@ class _InfoRow extends StatelessWidget {
             textAlign: TextAlign.end,
             style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: AppColors.textPrimary,
+                color: AppColors.ink,
                 fontWeight: FontWeight.w500),
           ),
         ),

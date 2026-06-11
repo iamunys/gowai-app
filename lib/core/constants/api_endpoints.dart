@@ -1,6 +1,7 @@
 class ApiEndpoints {
   static const claudeMessages = 'https://api.anthropic.com/v1/messages';
-  // static const claudeModel = 'claude-sonnet-4-6';
+  // Used by the legacy direct-call fallback only; the deployed Edge Function
+  // reads its model from the CLAUDE_MODEL Supabase secret instead.
   static const claudeModel = 'claude-haiku-4-5-20251001';
 
   static const anthropicVersion = '2023-06-01';

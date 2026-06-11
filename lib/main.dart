@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -26,7 +27,12 @@ void main() async {
 
   try {
     await RevenueCatService().initialize();
-    await RevenueCatService().debugOfferings();
+    if (kDebugMode) {
+      // Diagnostics only — fire-and-forget so this network round-trip to
+      // RevenueCat never delays startup (it used to block runApp, in
+      // release builds too).
+      RevenueCatService().debugOfferings();
+    }
   } catch (_) {
     // RevenueCat initialization failure is non-fatal
   }
@@ -48,7 +54,6 @@ void main() async {
       RevenueCatService().logOut();
     }
   });
-  print('RC Key: ${dotenv.env['REVENUECAT_IOS_KEY']}');
 
   runApp(
     ProviderScope(

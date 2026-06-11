@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import '../constants/app_strings.dart';
 
 class ErrorHandler {
   static String getMessage(Object error) {
     final msg = error.toString().toLowerCase();
-    print(msg);
+    // Raw errors are useful in development but must never reach production
+    // logs (they can carry API responses, emails, tokens).
+    if (kDebugMode) debugPrint('[ErrorHandler] $msg');
 
     if (msg.contains('socketexception') ||
+        msg.contains('timeoutexception') ||
         msg.contains('network') ||
         msg.contains('connection refused') ||
         msg.contains('failed host lookup')) {

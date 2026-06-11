@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import 'widgets/legal_section.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -19,25 +19,18 @@ class PrivacyPolicyScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
-          title: Text(
-            'Privacy Policy',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-              color: AppColors.textPrimary,
-            ),
-          ),
+          // Style comes from AppBarTheme.titleTextStyle.
+          title: const Text('Privacy Policy'),
           centerTitle: false,
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+        body: const SingleChildScrollView(
+          padding: EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _LastUpdated('June 2025'),
-              const SizedBox(height: 20),
-
-              _Section(
+              LastUpdatedBadge('June 2025'),
+              SizedBox(height: 20),
+              LegalSection(
                 title: '1. Introduction',
                 body:
                     'Gowai — AI Travel Planner ("Gowai", "we", "us", or "our") is operated by '
@@ -46,8 +39,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     'By using Gowai, you agree to the collection and use of information in accordance '
                     'with this policy.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '2. Information We Collect',
                 body:
                     'We collect the following types of information when you use Gowai:\n\n'
@@ -57,19 +49,16 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     '• Device information — basic device and OS info collected anonymously to monitor app performance and fix bugs.\n\n'
                     '🔒 We do NOT sell your personal data to any third party, ever.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '3. How We Use Your Information',
-                body:
-                    'We use the data we collect to:\n\n'
+                body: 'We use the data we collect to:\n\n'
                     '• Generate personalised AI trip itineraries tailored to your preferences.\n\n'
                     '• Save and synchronise your trips across devices via your account.\n\n'
                     '• Manage your subscription status (Free or Pro) through RevenueCat.\n\n'
                     '• Monitor and improve app performance and fix technical issues.\n\n'
                     '• Send important service updates (we do not send marketing emails without consent).',
               ),
-
-              _Section(
+              LegalSection(
                 title: '4. Third-Party Services We Use',
                 body:
                     'Gowai integrates with the following third-party services. Each has its own privacy policy:\n\n'
@@ -79,8 +68,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     '• RevenueCat — manages subscription billing and entitlements. We never see your payment card details.\n\n'
                     '• Google Sign-In / Apple Sign-In — optional authentication methods. We only receive basic profile info (name, email) from these providers.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '5. Data Storage & Security',
                 body:
                     '• Your data is stored securely on Supabase servers using industry-standard encryption (TLS in transit, AES-256 at rest).\n\n'
@@ -88,40 +76,34 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     '• Access to your data is restricted to authorised systems and personnel only.\n\n'
                     '• While we take reasonable precautions, no method of electronic storage is 100% secure.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '6. Data Retention',
                 body:
                     '• Your data is retained for as long as your Gowai account remains active.\n\n'
                     '• If you delete your account, all your personal data, profile information, and saved trips are permanently removed from our servers.\n\n'
                     '• You can delete your account at any time from Profile → Delete Account.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '7. Children\'s Privacy',
                 body:
                     'Gowai is not intended for users under the age of 13. We do not knowingly collect personal information from children under 13. '
                     'If you believe a child has provided us with personal information, please contact us immediately at gowai.app@gmail.com and we will delete it promptly.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '8. Your Rights',
-                body:
-                    'You have the following rights regarding your data:\n\n'
+                body: 'You have the following rights regarding your data:\n\n'
                     '• Access — you can view your profile and all trip data within the app at any time.\n\n'
                     '• Deletion — you can permanently delete all your data by using the Delete Account feature in Profile settings.\n\n'
                     '• Correction — you can update your profile information within the app.\n\n'
                     '• Contact — for any data-related requests or questions, email us at gowai.app@gmail.com.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '9. Changes to This Policy',
                 body:
                     'We may update this Privacy Policy from time to time. When we do, we will update the "Last Updated" date at the top of this page. '
                     'Your continued use of Gowai after any changes to this policy constitutes your acceptance of the updated terms.',
               ),
-
-              _Section(
+              LegalSection(
                 title: '10. Contact Us',
                 body:
                     'If you have any questions about this Privacy Policy or how we handle your data, please contact us:\n\n'
@@ -129,8 +111,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     'Email: gowai.app@gmail.com\n'
                     'Website: gowai.app',
               ),
-
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
             ],
           ),
         ),
@@ -139,77 +120,5 @@ class PrivacyPolicyScreen extends StatelessWidget {
   }
 }
 
-// ─── Reusable widgets ─────────────────────────────────────────────────────────
-
-class _LastUpdated extends StatelessWidget {
-  final String date;
-  const _LastUpdated(this.date);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withAlpha(15),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Last updated: $date',
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          color: AppColors.primary,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  final String title;
-  final String body;
-  const _Section({required this.title, required this.body});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: AppColors.cardShadow,
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              body,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.7,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// Section/badge widgets live in widgets/legal_section.dart (shared with
+// the Terms of Service screen).

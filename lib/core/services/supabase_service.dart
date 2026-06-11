@@ -44,39 +44,6 @@ class SupabaseService {
         .update({'full_name': fullName}).eq('id', userId);
   }
 
-  // Future<bool> canGenerateTrip(String userId) async {
-  //   final profile = await getProfile(userId);
-  //   if (profile == null) return false;
-  //   if (profile.isPro) return true;
-
-  //   final now = DateTime.now();
-  //   final lastReset = profile.lastResetDate;
-  //   if (lastReset == null ||
-  //       now.month != lastReset.month ||
-  //       now.year != lastReset.year) {
-  //     await _client.from('profiles').update({
-  //       'trips_used_this_month': 0,
-  //       'last_reset_date': now.toIso8601String().split('T').first,
-  //     }).eq('id', userId);
-  //     return true;
-  //   }
-
-  //   return profile.tripsUsedThisMonth < 3;
-  // }
-
-  // Future<void> incrementTripCount(String userId) async {
-  //   // Direct update — no RPC dependency.
-  //   // The increment_trips_used() SQL function is optional; if it exists it can
-  //   // replace this, but the direct update is sufficient and avoids the
-  //   // "function not found in schema cache" PostgREST error.
-  //   final profile = await getProfile(userId);
-  //   if (profile != null) {
-  //     await _client.from('profiles').update({
-  //       'trips_used_this_month': profile.tripsUsedThisMonth + 1,
-  //     }).eq('id', userId);
-  //   }
-  // }
-
   Future<bool> incrementTripCount(String userId) async {
     final result =
         await _client.rpc('increment_trips_used', params: {'user_id': userId});

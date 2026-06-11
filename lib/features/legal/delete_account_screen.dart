@@ -35,7 +35,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           'Are you absolutely sure?',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: AppColors.ink,
           ),
         ),
         content: Text(
@@ -86,7 +86,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
       if (userId == null) {
         if (mounted) {
-          ErrorSnackbar.show(context, 'No active session. Please sign in again.');
+          ErrorSnackbar.show(
+              context, 'No active session. Please sign in again.');
         }
         return;
       }
@@ -141,14 +142,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            title: Text(
-              'Delete Account',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            // Style comes from AppBarTheme.titleTextStyle.
+            title: const Text('Delete Account'),
             centerTitle: false,
           ),
           body: SingleChildScrollView(
@@ -179,7 +174,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: AppColors.ink,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -235,7 +230,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   item,
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
-                                    color: AppColors.textPrimary,
+                                    color: AppColors.ink,
                                     height: 1.4,
                                   ),
                                 ),
@@ -258,7 +253,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: AppColors.ink,
                     ),
                   ),
                 ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lottie/lottie.dart';
 import '../../core/constants/app_colors.dart';
+import 'app_loader.dart';
 
 class PrimaryButton extends StatelessWidget {
   final String label;
@@ -25,18 +25,14 @@ class PrimaryButton extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: onPressed != null
-              ? const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryDark],
-                )
-              : const LinearGradient(
-                  colors: [Color(0xFFB0ADE0), Color(0xFF8E8BCC)],
-                ),
+              ? AppColors.primaryGradient
+              : AppColors.disabledGradient,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: AppColors.cardShadow,
               blurRadius: 12,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -50,21 +46,7 @@ class PrimaryButton extends StatelessWidget {
             ),
           ),
           child: isLoading
-              ? Lottie.asset(
-                  'assets/lottie/loader.json',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.contain,
-                  delegates: LottieDelegates(
-                    values: [
-                      ValueDelegate.color(const [
-                        '**',
-                        'Fill 1',
-                        '**',
-                      ], value: AppColors.surface),
-                    ],
-                  ),
-                )
+              ? const AppLoader(size: 36, color: AppColors.surface)
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

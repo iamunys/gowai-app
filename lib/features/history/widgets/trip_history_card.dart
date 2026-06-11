@@ -1,9 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/models/trip.dart';
+import '../../../shared/widgets/cached_image.dart';
 
 class TripHistoryCard extends StatelessWidget {
   final Trip trip;
@@ -45,13 +45,11 @@ class TripHistoryCard extends StatelessWidget {
             children: [
               // Background image
               SizedBox.expand(
-                child: _coverPhoto != null
-                    ? CachedNetworkImage(
-                        imageUrl: _coverPhoto!,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => _DefaultBg(),
-                      )
-                    : _DefaultBg(),
+                child: CachedImage(
+                  url: _coverPhoto,
+                  memCacheWidth: 600,
+                  errorWidget: _DefaultBg(),
+                ),
               ),
               // Gradient overlay
               SizedBox.expand(
