@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/models/trip.dart';
 import '../../core/services/service_providers.dart';
+import '../../core/utils/route_optimizer.dart';
 import 'planner_questions.dart';
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -207,8 +208,13 @@ class PlannerNotifier extends AutoDisposeNotifier<PlannerState> {
             transport: s.transport!,
           );
 
-      final enrichedStops =
-          await ref.read(placesServiceProvider).enrichStops(stops);
+      final enrichedStops = await ref
+          .read(placesServiceProvider)
+          .enrichStops(stops, destination: s.destination);
+
+      // Reorder stops so the route doesn't zigzag across the destination —
+      // the AI's order reflects a plausible day schedule, not geography.
+      final orderedStops = optimizeStopOrder(enrichedStops);
 
       return GenerateSuccess(Trip(
         destination: s.destination,
@@ -216,7 +222,7 @@ class PlannerNotifier extends AutoDisposeNotifier<PlannerState> {
         vibe: s.vibe!,
         budget: s.budget!,
         groupType: s.group!,
-        stops: enrichedStops,
+        stops: orderedStops,
       ));
     } catch (e) {
       return GenerateFailure(e);

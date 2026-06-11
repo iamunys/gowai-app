@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/history/history_screen.dart';
+import 'features/itinerary/itinerary_map_screen.dart';
 import 'features/itinerary/itinerary_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/planner/planner_screen.dart';
@@ -83,6 +84,17 @@ class GowaiApp extends StatelessWidget {
               ? state.extra as Trip
               : Trip.fromJson(state.extra as Map<String, dynamic>);
           return ItineraryScreen(trip: trip);
+        },
+      ),
+      GoRoute(
+        path: '/itinerary/map',
+        builder: (_, state) {
+          final trip = state.extra is Trip
+              ? state.extra as Trip
+              : Trip.fromJson(state.extra as Map<String, dynamic>);
+          final stopIndex =
+              int.tryParse(state.uri.queryParameters['stopIndex'] ?? '') ?? 0;
+          return ItineraryMapScreen(trip: trip, initialStopIndex: stopIndex);
         },
       ),
       GoRoute(
